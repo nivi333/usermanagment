@@ -121,18 +121,21 @@ const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1h';
 app.post('/register', async (req, res) => {
   const { email, password } = req.body;
   if (!validatePassword(password)) {
+    console.error(`[REGISTER] Validation failed for email: ${email} - Password does not meet policy.`);
     return res.status(400).json({ error: 'Password must be at least 8 characters, include upper, lower, and digit.' });
   }
   try {
     const existing = await knex('users').where({ email }).first();
     if (existing) {
+      console.error(`[REGISTER] Duplicate email attempted: ${email}`);
       return res.status(400).json({ error: 'Registration failed.' });
     }
     const hashed = await bcrypt.hash(password, 10);
     await knex('users').insert({ email, password: hashed, role: 'user' });
+    console.log(`[REGISTER] User created: ${email}`);
     res.status(201).json({ message: 'Registration successful.' });
   } catch (err) {
-    console.error('Registration error:', err);
+    console.error(`[REGISTER] Registration error for email ${email}:`, err);
     res.status(500).json({ error: 'Registration failed.' });
   }
 });
@@ -265,13 +268,17 @@ const PORT = process.env.PORT || 3000;
 const CERT_PATH = process.env.CERT_PATH || './certs/cert.pem';
 const KEY_PATH = process.env.KEY_PATH || './certs/key.pem';
 
-if (fs.existsSync(CERT_PATH) && fs.existsSync(KEY_PATH)) {
-  const cert = fs.readFileSync(CERT_PATH);
-  const key = fs.readFileSync(KEY_PATH);
-  https.createServer({ key, cert }, app).listen(PORT, '0.0.0.0', () => {
-    console.log(`Backend running with HTTPS on port ${PORT}`);
-  });
-} else {
-  app.listen(PORT, '0.0.0.0', () => console.log(`Backend running with HTTP (dev only) on port ${PORT}`));
-  console.warn('Warning: HTTPS certs not found, running HTTP. For production, provide valid certs.');
+if (require.main === module) {
+  if (fs.existsSync(CERT_PATH) && fs.existsSync(KEY_PATH)) {
+    const cert = fs.readFileSync(CERT_PATH);
+    const key = fs.readFileSync(KEY_PATH);
+    https.createServer({ key, cert }, app).listen(PORT, '0.0.0.0', () => {
+      console.log(`Backend running with HTTPS on port ${PORT}`);
+    });
+  } else {
+    app.listen(PORT, '0.0.0.0', () => console.log(`Backend running with HTTP (dev only) on port ${PORT}`));
+    console.warn('Warning: HTTPS certs not found, running HTTP. For production, provide valid certs.');
+  }
 }
+
+module.exports = app;

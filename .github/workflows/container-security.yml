@@ -1,0 +1,39 @@
+name: Container Security Scan
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  trivy-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build backend Docker image
+        run: docker build -t backend:ci ./backend
+
+      - name: Build frontend Docker image
+        run: docker build -t frontend:ci ./frontend
+
+      - name: Run Trivy scan (backend)
+        uses: aquasecurity/trivy-action@v0.17.0
+        with:
+          image-ref: 'backend:ci'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+
+      - name: Run Trivy scan (frontend)
+        uses: aquasecurity/trivy-action@v0.17.0
+        with:
+          image-ref: 'frontend:ci'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true

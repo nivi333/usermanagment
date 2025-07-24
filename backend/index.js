@@ -128,7 +128,7 @@ app.post('/register', async (req, res) => {
     const existing = await knex('users').where({ email }).first();
     if (existing) {
       console.error(`[REGISTER] Duplicate email attempted: ${email}`);
-      return res.status(400).json({ error: 'Registration failed.' });
+      return res.status(400).json({ error: 'Email already registered.' });
     }
     const hashed = await bcrypt.hash(password, 10);
     await knex('users').insert({ email, password: hashed, role: 'user' });

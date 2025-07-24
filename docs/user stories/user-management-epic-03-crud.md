@@ -1,43 +1,98 @@
-# Epic 3: User Management Core (CRUD) – User Stories
+# Epic 3: User Management Core (CRUD) – Actionable TODOs
 
-## As an admin, I want to create new users with validated input
+## Objective
+Refactor and expand the user management system to fully meet the project requirements for a modern, production-grade CRUD application.
 
-### Description
-Allow admins to create user records with strict validation to ensure data integrity and compliance with business rules.
+---
 
-### Industry Best Practices
-- Use schema validation (Joi/Zod)
-- Enforce required fields, formats, and unique constraints
-- Validate on both frontend and backend
+## Key Outcomes
+- Full-featured CRUD for user records, matching the detailed user model and business rules.
+- TypeScript-only codebase (frontend & backend).
+- Modern, modular project structure.
+- Robust validation, error handling, and user experience.
 
-### Acceptance Criteria
-- [x] All user fields validated per requirements
-- [x] Duplicate emails are rejected
-- [x] Errors are clear and actionable
-- [x] Tests cover all validation rules
+---
 
-### Potential Tasks
-- [x] Implement frontend and backend validation
-- [x] Add unique constraints in database
-- [x] Write validation tests
+## Major Tasks (TODO)
 
-### Dependencies
-- Authentication implemented
+### 1. **Refactor Project Structure**
+- [ ] Organize frontend into `components/`, `pages/`, `types/`, `utils/`, `styles/` as per spec.
+- [ ] Organize backend into `controllers/`, `services/`, `models/`, `routes/`, `middleware/`, `types/`, `utils/`.
 
-### Implementation
-- Define a user schema using Joi or Zod for validation.
-- Implement backend validation middleware to enforce schema rules.
-- Add frontend form validation that mirrors backend rules.
-- Ensure unique constraints are set at the database level (e.g., unique index on email).
-- Return clear, actionable error messages on validation failure.
-- Write unit and integration tests to cover validation logic.
-- Document validation rules for future reference.
+### 2. **Expand User Model and Types**
+- [ ] Update user entity to match:
+```ts
+interface User {
+  id: string; // UUID
+  firstName: string;
+  lastName: string;
+  email: string;
+  phoneNumber?: string;
+  dateOfBirth: Date;
+  address: {
+    street: string;
+    city: string;
+    state: string;
+    zipCode: string;
+    country: string;
+  };
+  department: string;
+  position: string;
+  startDate: Date;
+  status: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+```
+- [ ] Add TypeScript types/interfaces in `types/`.
 
+### 3. **Backend Refactor/Upgrade**
+- [ ] Migrate backend to TypeScript + Express + TypeORM.
+- [ ] Implement RESTful API at `/api/v1/users` with all endpoints, pagination, filtering, sorting, and correct response format.
+- [ ] Add OpenAPI/Swagger documentation.
+- [ ] Implement input validation middleware (Zod/Joi) for all endpoints.
+- [ ] Add error handling middleware and logging.
+- [ ] Ensure database schema matches user model and uses UUIDs.
+- [ ] Add migration scripts for schema.
 
-### Priority
+### 4. **Frontend Expansion & Refactor**
+- [ ] Create modular pages: UserListPage, CreateUserPage, EditUserPage, UserDetailsPage, DashboardPage.
+- [ ] Implement UserTable, UserForm, UserDetails, UserFilters as reusable components.
+- [ ] Add styled-components and global theming.
+- [ ] Implement advanced CRUD features:
+  - [ ] Pagination, search, filter, sort, bulk delete.
+  - [ ] Full user form with all fields and validations.
+  - [ ] Real-time validation feedback.
+  - [ ] Success/error toasts.
+  - [ ] Loading states and error boundaries.
+  - [ ] Accessibility (ARIA, keyboard navigation).
+- [ ] Dashboard: charts (users by department/status), recent users, quick actions.
+
+### 5. **Testing & Quality**
+- [ ] Write unit/integration tests for backend (validation, endpoints).
+- [ ] Write frontend tests (form validation, CRUD flows).
+- [ ] Set up ESLint, Prettier, and strict TypeScript settings.
+
+### 6. **Deployment & DevOps**
+- [ ] Update Dockerfiles for frontend/backend (TypeScript build).
+- [ ] Update docker-compose for new services and environment variables.
+- [ ] Ensure .env files are used for all secrets/config.
+
+---
+
+## Dependencies
+- Authentication epic completed
+- Database service running
+
+## Priority
 High
 
-### Estimation
+## Notes
+- Follow RESTful API and TypeScript best practices.
+- Commit frequently with clear messages.
+- Document all validation and business rules.
+- Focus on code quality, maintainability, and user experience.
+
 3 Story Points
 
 ---

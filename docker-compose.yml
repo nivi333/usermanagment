@@ -1,13 +1,16 @@
 version: '3.8'
 services:
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        REACT_APP_API_URL: http://localhost:3001
     ports:
       - "80:80"
     depends_on:
       - backend
     environment:
-      - REACT_APP_API_URL=http://backend:3000
+      - REACT_APP_API_URL=http://localhost:3001
   backend:
     build: ./backend
     ports:
@@ -17,6 +20,7 @@ services:
     environment:
       - DATABASE_URL=postgresql://user:password@postgres:5432/userdb
       - NODE_ENV=production
+      - CORS_ORIGINS=http://localhost,http://localhost:80
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
       interval: 30s
@@ -42,7 +46,7 @@ services:
   logstash:
     image: docker.elastic.co/logstash/logstash:8.12.0
     ports:
-      - "5000:5000" # Logstash TCP input
+      - "5050:5000" # Logstash TCP input
     environment:
       - LS_JAVA_OPTS=-Xms256m -Xmx256m
     volumes:

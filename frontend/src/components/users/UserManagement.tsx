@@ -230,6 +230,19 @@ const UserManagement: React.FC<UserManagementProps> = ({ user, onLogout }) => {
                     ]}
                   />
                 </Form.Item>
+                {/* Password field only for creation */}
+                {editingUser === null && (
+                  <Form.Item
+                    name="password"
+                    label="Password"
+                    rules={[
+                      { required: true, message: 'Please input the password!' },
+                      { pattern: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/, message: 'Password must be at least 8 characters, include upper, lower, and digit.' }
+                    ]}
+                  >
+                    <Input.Password placeholder="Password" />
+                  </Form.Item>
+                )}
               </Form>
             </Modal>
           </div>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Layout, Menu, Button, Typography, Table, Card, Modal, Form, 
-  Input, Select, Space, Avatar, message, Popconfirm, Tag 
+  Input, Select, Space, Avatar, message, Popconfirm, Tag, Alert 
 } from 'antd';
 import { 
   UserOutlined, LogoutOutlined, TeamOutlined, DashboardOutlined,
@@ -21,11 +21,16 @@ interface User {
 }
 
 interface UserManagementProps {
-  user: User;
   onLogout: () => void;
 }
 
-const UserManagement: React.FC<UserManagementProps> = ({ user, onLogout }) => {
+import { useAuth } from '../../context/AuthContext';
+
+const UserManagement: React.FC<UserManagementProps> = ({ onLogout }) => {
+  const { user, isAdmin } = useAuth();
+  if (!user) return null; // Prevent null errors
+  const [alert, setAlert] = useState<{visible: boolean; message: string; type?: 'success' | 'error'}>({visible: false, message: '', type: undefined});
+
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
@@ -84,17 +89,23 @@ const UserManagement: React.FC<UserManagementProps> = ({ user, onLogout }) => {
       const values = await form.validateFields();
       if (editingUser) {
         await userAPI.updateUser(editingUser.id, values);
-        message.success('User updated successfully');
+        message.success('User updated successfully.', 3);
       } else {
-        await userAPI.createUser(values);
-        message.success('User created successfully');
+        const res = await userAPI.createUser(values);
+        message.success(res?.data?.message || 'User created successfully.', 3);
       }
       setModalVisible(false);
       fetchUsers();
-    } catch (error) {
-      message.error('Failed to save user');
+    } catch (error: any) {
+      let errMsg = 'Failed to save user';
+      if (error?.response?.data?.error) {
+        errMsg = error.response.data.error;
+      }
+      setAlert({visible: true, message: errMsg});
+      setTimeout(() => setAlert({visible: false, message: ''}), 3000);
     }
   };
+
 
   const columns = [
     {
@@ -114,10 +125,12 @@ const UserManagement: React.FC<UserManagementProps> = ({ user, onLogout }) => {
       key: 'actions',
       render: (_: any, record: User) => (
         <Space>
-          <Button icon={<EditOutlined />} onClick={() => handleEditUser(record)} />
-          <Popconfirm title="Are you sure?" onConfirm={() => handleDeleteUser(record.id)}>
-            <Button icon={<DeleteOutlined />} danger />
-          </Popconfirm>
+          {isAdmin && <Button icon={<EditOutlined />} onClick={() => handleEditUser(record)} />}
+          {isAdmin && (
+            <Popconfirm title="Are you sure?" onConfirm={() => handleDeleteUser(record.id)}>
+              <Button danger icon={<DeleteOutlined />} />
+            </Popconfirm>
+          )}
         </Space>
       ),
     },
@@ -181,14 +194,16 @@ const UserManagement: React.FC<UserManagementProps> = ({ user, onLogout }) => {
         </Header>
         <Content style={{ margin: '24px', background: '#f0f2f5' }}>
           <div style={{ padding: 24, minHeight: 360 }}>
-            <Button 
-              type="primary" 
-              icon={<PlusOutlined />} 
-              style={{ marginBottom: 16 }}
-              onClick={handleCreateUser}
-            >
-              Add User
-            </Button>
+            {isAdmin && (
+              <Button 
+                type="primary" 
+                icon={<PlusOutlined />} 
+                style={{ marginBottom: 16 }}
+                onClick={handleCreateUser}
+              >
+                Add User
+              </Button>
+            )}
             <Table
               columns={columns}
               dataSource={users}
@@ -203,6 +218,11 @@ const UserManagement: React.FC<UserManagementProps> = ({ user, onLogout }) => {
               onOk={handleModalOk}
               okText={editingUser ? 'Update' : 'Create'}
             >
+              {alert.visible && (
+                <div style={{ marginBottom: 16 }}>
+                  <Alert message={alert.message} type={alert.type || 'error'} showIcon />
+                </div>
+              )}
               <Form
                 form={form}
                 layout="vertical"

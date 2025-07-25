@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
+import api from '../utils/api';
 
 console.log('RoleManagement component mounted');
-import api from '../utils/api';
 
 interface Role {
   id: number;
@@ -22,6 +22,11 @@ const RoleManagement: React.FC = () => {
   const [permissionForm, setPermissionForm] = useState<Partial<Permission>>({});
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  // New state for permission assignment modal
+  const [permModalOpen, setPermModalOpen] = useState(false);
+  const [permRole, setPermRole] = useState<Role | null>(null);
+  const [permRolePerms, setPermRolePerms] = useState<number[]>([]);
+  const [permLoading, setPermLoading] = useState(false);
 
   // Fetch roles and permissions
   const fetchData = async () => {
@@ -40,6 +45,40 @@ const RoleManagement: React.FC = () => {
   useEffect(() => {
     fetchData();
   }, []);
+
+  // Fetch permissions for a role
+  const fetchRolePermissions = async (roleId: number) => {
+    try {
+      const res = await api.get(`/roles/${roleId}/permissions`);
+      setPermRolePerms(res.data.map((p: Permission) => p.id));
+    } catch {
+      setPermRolePerms([]);
+    }
+  };
+
+  // Open permission modal
+  const openPermModal = async (role: Role) => {
+    setPermRole(role);
+    setPermModalOpen(true);
+    setPermLoading(true);
+    await fetchRolePermissions(role.id);
+    setPermLoading(false);
+  };
+
+  // Submit permission assignments
+  const handlePermAssign = async () => {
+    if (!permRole) return;
+    setPermLoading(true); setError(null); setSuccess(null);
+    try {
+      await api.post(`/roles/${permRole.id}/permissions`, { permissions: permRolePerms });
+      setSuccess('Permissions updated.');
+      setPermModalOpen(false);
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to update permissions.');
+    } finally {
+      setPermLoading(false);
+    }
+  };
 
   // Role CRUD
   const handleRoleSubmit = async (e: React.FormEvent) => {
@@ -127,13 +166,16 @@ const RoleManagement: React.FC = () => {
         </form>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
-            <tr><th>Name</th><th>Description</th><th>Actions</th></tr>
+            <tr><th>Name</th><th>Description</th><th>Permissions</th><th>Actions</th></tr>
           </thead>
           <tbody>
             {roles.map(role => (
               <tr key={role.id}>
                 <td>{role.name}</td>
                 <td>{role.description}</td>
+                <td>
+                  <button onClick={() => openPermModal(role)}>Manage Permissions</button>
+                </td>
                 <td>
                   <button onClick={() => setRoleForm(role)}>Edit</button>
                   <button onClick={() => handleRoleDelete(role.id)}>Delete</button>
@@ -142,6 +184,35 @@ const RoleManagement: React.FC = () => {
             ))}
           </tbody>
         </table>
+        {/* Permission Assignment Modal */}
+        {permModalOpen && permRole && (
+          <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+            <div style={{ background: '#fff', padding: 32, borderRadius: 8, minWidth: 350 }}>
+              <h4>Manage Permissions for: {permRole.name}</h4>
+              {permLoading ? <div>Loading...</div> : (
+                <>
+                  <select
+                    multiple
+                    style={{ width: '100%', minHeight: 120 }}
+                    value={permRolePerms.map(String)}
+                    onChange={e => {
+                      const options = Array.from(e.target.selectedOptions).map(opt => Number(opt.value));
+                      setPermRolePerms(options);
+                    }}
+                  >
+                    {permissions.map(p => (
+                      <option key={p.id} value={p.id}>{p.name} - {p.description}</option>
+                    ))}
+                  </select>
+                  <div style={{ marginTop: 16, display: 'flex', gap: 8 }}>
+                    <button onClick={handlePermAssign} disabled={permLoading}>Save</button>
+                    <button onClick={() => setPermModalOpen(false)}>Cancel</button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
       </section>
       <section style={{ marginTop: 40 }}>
         <h3>Permissions</h3>

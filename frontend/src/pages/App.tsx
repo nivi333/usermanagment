@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { AuthProvider } from '../context/AuthContext';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Layout, ConfigProvider, theme } from 'antd';
 import Login from '../components/common/Login';
@@ -7,6 +8,7 @@ import Dashboard from '../components/dashboard/Dashboard';
 import UserManagement from '../components/users/UserManagement';
 import '../styles/App.css';
 import RoleManagement from './RoleManagement';
+import ProtectedRoute from '../components/common/ProtectedRoute';
 
 const { Content } = Layout;
 
@@ -17,7 +19,7 @@ interface UserPayload {
   [key: string]: any;
 }
 
-function App() {
+function AppContent() {
   const [user, setUser] = useState<UserPayload | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -74,11 +76,23 @@ function App() {
               />
               <Route 
                 path="/users" 
-                element={user && user.role === 'admin' ? <UserManagement user={user} onLogout={handleLogout} /> : <Navigate to="/dashboard" />} 
+                element={
+                  <ProtectedRoute requiredRole="admin">
+                    <UserManagement onLogout={handleLogout} />
+                  </ProtectedRoute>
+                }
               />
               <Route
                 path="/role-management"
-                element={user && user.role === 'admin' ? <RoleManagement /> : <Navigate to="/dashboard" />}
+                element={
+                  <ProtectedRoute requiredRole="admin">
+                    <RoleManagement />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/not-authorized"
+                element={<div style={{padding: 48, textAlign: 'center'}}><h2>Not Authorized</h2><p>You do not have permission to access this page.</p></div>}
               />
               <Route 
                 path="/" 
@@ -91,5 +105,11 @@ function App() {
     </ConfigProvider>
   );
 }
+
+const App = () => (
+  <AuthProvider>
+    <AppContent />
+  </AuthProvider>
+);
 
 export default App;

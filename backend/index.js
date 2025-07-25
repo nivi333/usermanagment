@@ -394,6 +394,7 @@ app.delete('/permissions/:id', authenticateJWT, requireRole(['admin']), async (r
 
 // Admin-only: create new user
 app.post('/users', authenticateJWT, requireRole(['admin']), async (req, res) => {
+  console.log('DEBUG: POST /users called', req.body);
   const schema = Joi.object({
     email: Joi.string().email().required(),
     password: Joi.string().pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/).required().messages({
@@ -405,22 +406,31 @@ app.post('/users', authenticateJWT, requireRole(['admin']), async (req, res) => 
   if (error) return res.status(400).json({ error: error.details[0].message });
   const { email, password, role } = value;
   try {
-    const existing = await knex('users').where({ email }).first();
-    if (existing) {
-      return res.status(400).json({ error: 'Email already exists.' });
-    }
-    const hashed = await bcrypt.hash(password, 10);
-    const [userId] = await knex('users').insert({ email, password: hashed, role }).returning('id');
-    await knex('audit_logs').insert({
-      user_id: userId || null,
-      action: 'user_create',
-      old_role: null,
-      new_role: role,
-      changed_by: req.user.email,
-      timestamp: new Date().toISOString()
+    await knex.transaction(async trx => {
+      const existing = await trx('users').where({ email }).first();
+      if (existing) {
+        throw { status: 400, message: 'Email already exists.' };
+      }
+      const hashed = await bcrypt.hash(password, 10);
+      const [userRow] = await trx('users').insert({ email, password: hashed, role }).returning('id');
+      const userId = typeof userRow === 'object' && userRow !== null ? userRow.id : userRow;
+      await trx('audit_logs').insert({
+        user_id: userId || null,
+        action: 'user_create',
+        old_role: null,
+        new_role: role,
+        changed_by: req.user.email,
+        timestamp: new Date().toISOString()
+      });
     });
     res.status(201).json({ message: 'User created successfully.' });
   } catch (err) {
+    if (err && err.status === 400) {
+      return res.status(400).json({ error: err.message });
+    }
+    if (err && err.code === '23505') {
+      return res.status(400).json({ error: 'Email already exists.' });
+    }
     console.error('User creation error:', err);
     res.status(500).json({ error: 'User creation failed.' });
   }
@@ -457,6 +467,8 @@ const CERT_PATH = process.env.CERT_PATH || './certs/cert.pem';
 const KEY_PATH = process.env.KEY_PATH || './certs/key.pem';
 
 // --- Startup check: Ensure at least one admin exists ---
+module.exports = app;
+
 (async () => {
   try {
     const adminCount = await knex('users').where({ role: 'admin' }).count('id as count');

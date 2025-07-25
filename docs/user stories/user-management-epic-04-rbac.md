@@ -15,6 +15,18 @@ Allow admins to define, assign, and modify user roles and permissions, ensuring 
 - [ ] Only authorized users can manage roles
 - [ ] All changes are logged and auditable
 
+### Implementation Progress
+- [x] RBAC middleware (`requireRole`) implemented in backend
+- [x] Role assignment endpoint (`/assign-role`) implemented
+- [x] Audit log for role changes implemented
+- [x] CORS and frontend-backend communication fixed
+- [x] Project structure refactored to monorepo
+- [x] Backend migration and CRUD endpoints for roles implemented (with audit logging)
+- [x] Backend endpoints for permission CRUD implemented (with audit logging)
+- [x] Frontend UI for role/permission management implemented (admin-only, TypeScript)
+- [ ] Tests for RBAC features (To Do)
+
+
 ### Potential Tasks
 - Design RBAC schema and UI
 - Implement role/permission management endpoints
@@ -48,6 +60,12 @@ Ensure all access control checks are enforced consistently in both backend APIs 
 - [ ] Unauthorized access is blocked and logged
 - [ ] UI adapts to user role
 
+### Implementation Progress
+- [x] Backend RBAC middleware (`requireRole`) in place
+- [x] Some frontend role-based UI logic (basic admin/user separation)
+- [ ] Comprehensive frontend guards and UI adaptation (To Do)
+- [ ] Full test coverage for access control (To Do)
+
 ### Potential Tasks
 - Implement backend middleware for RBAC
 - Add frontend guards and UI logic
@@ -78,6 +96,12 @@ Log all changes to roles and permissions to support compliance, auditability, an
 - [ ] All role/permission changes are logged with full context
 - [ ] Logs are immutable and protected
 - [ ] Only authorized users can view logs
+
+### Implementation Progress
+- [x] Audit log for role changes implemented and accessible
+- [ ] Secure log storage and immutability (To Do)
+- [ ] Restrict log access to authorized users only (To Do)
+- [ ] Tests for audit logging (To Do)
 
 ### Potential Tasks
 - Integrate audit logging for RBAC changes

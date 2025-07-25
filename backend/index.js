@@ -47,6 +47,17 @@ app.use(cors({
 
 app.use(bodyParser.json());
 
+// --- GET /users endpoint for admin user listing ---
+app.get('/users', authenticateJWT, requireRole(['admin']), async (req, res) => {
+  try {
+    const users = await knex('users').select('id', 'email', 'role', 'created_at', 'updated_at').orderBy('id');
+    res.json(users);
+  } catch (err) {
+    logger.error('Failed to fetch users:', err);
+    res.status(500).json({ error: 'Could not fetch users.' });
+  }
+});
+
 // Rate limiter for login
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -143,19 +154,29 @@ app.post('/register', async (req, res) => {
 
 // Login endpoint with rate limiting
 app.post('/login', loginLimiter, async (req, res) => {
+  console.log('[LOGIN ATTEMPT]', req.body);
   const { email, password } = req.body;
   try {
     const user = await knex('users').where({ email }).first();
-    if (!user || !(await bcrypt.compare(password, user.password))) {
+    console.log('[LOGIN DEBUG] User found:', user);
+    if (!user) {
+      console.log('[LOGIN DEBUG] No user found for email:', email);
+      return res.status(401).json({ error: 'Invalid credentials.' });
+    }
+    const passwordMatch = await bcrypt.compare(password, user.password);
+    console.log('[LOGIN DEBUG] Password match:', passwordMatch);
+    if (!passwordMatch) {
+      console.log('[LOGIN DEBUG] Password did not match for email:', email);
       return res.status(401).json({ error: 'Invalid credentials.' });
     }
     const token = jwt.sign(
-      { sub: user.id, email: user.email, role: user.role },
+      { id: user.id, sub: user.id, email: user.email, role: user.role },
       JWT_SECRET,
       { expiresIn: JWT_EXPIRES_IN }
     );
     res.json({ token });
   } catch (err) {
+    console.error('Login error:', err);
     res.status(500).json({ error: 'Login failed.' });
   }
 });
@@ -184,6 +205,172 @@ function requireRole(requiredRoles) {
 
 // Admin-only: assign/modify user role
 app.post('/assign-role', authenticateJWT, requireRole(['admin']), async (req, res) => {
+
+// --- RBAC Role CRUD Endpoints ---
+// Create Role
+app.post('/roles', authenticateJWT, requireRole(['admin']), async (req, res) => {
+  const schema = Joi.object({
+    name: Joi.string().min(2).max(32).required(),
+    description: Joi.string().allow('').max(255)
+  });
+  const { error, value } = schema.validate(req.body);
+  if (error) return res.status(400).json({ error: error.details[0].message });
+  try {
+    const [roleId] = await knex('roles').insert({ name: value.name, description: value.description }).returning('id');
+    await knex('audit_logs').insert({
+      user_id: req.user.sub,
+      action: 'role_create',
+      old_role: null,
+      new_role: value.name,
+      changed_by: req.user.email,
+      timestamp: new Date().toISOString()
+    });
+    res.status(201).json({ id: roleId, ...value });
+  } catch (err) {
+    if (err.code === '23505') return res.status(400).json({ error: 'Role name must be unique.' });
+    res.status(500).json({ error: 'Role creation failed.' });
+  }
+});
+
+// List Roles
+app.get('/roles', authenticateJWT, requireRole(['admin']), async (req, res) => {
+  try {
+    const roles = await knex('roles').select('*').orderBy('id');
+    res.json(roles);
+  } catch (err) {
+    res.status(500).json({ error: 'Could not retrieve roles.' });
+  }
+});
+
+// Update Role
+app.put('/roles/:id', authenticateJWT, requireRole(['admin']), async (req, res) => {
+  const schema = Joi.object({
+    name: Joi.string().min(2).max(32),
+    description: Joi.string().allow('').max(255)
+  });
+  const { error, value } = schema.validate(req.body);
+  if (error) return res.status(400).json({ error: error.details[0].message });
+  try {
+    const oldRole = await knex('roles').where({ id: req.params.id }).first();
+    if (!oldRole) return res.status(404).json({ error: 'Role not found.' });
+    await knex('roles').where({ id: req.params.id }).update(value);
+    await knex('audit_logs').insert({
+      user_id: req.user.sub,
+      action: 'role_update',
+      old_role: oldRole.name,
+      new_role: value.name || oldRole.name,
+      changed_by: req.user.email,
+      timestamp: new Date().toISOString()
+    });
+    res.json({ message: 'Role updated.' });
+  } catch (err) {
+    res.status(500).json({ error: 'Role update failed.' });
+  }
+});
+
+// Delete Role
+app.delete('/roles/:id', authenticateJWT, requireRole(['admin']), async (req, res) => {
+
+// --- RBAC Permission CRUD Endpoints ---
+// Create Permission
+app.post('/permissions', authenticateJWT, requireRole(['admin']), async (req, res) => {
+  const schema = Joi.object({
+    name: Joi.string().min(2).max(32).required(),
+    description: Joi.string().allow('').max(255)
+  });
+  const { error, value } = schema.validate(req.body);
+  if (error) return res.status(400).json({ error: error.details[0].message });
+  try {
+    const [permissionId] = await knex('permissions').insert({ name: value.name, description: value.description }).returning('id');
+    await knex('audit_logs').insert({
+      user_id: req.user.sub,
+      action: 'permission_create',
+      old_role: null,
+      new_role: value.name,
+      changed_by: req.user.email,
+      timestamp: new Date().toISOString()
+    });
+    res.status(201).json({ id: permissionId, ...value });
+  } catch (err) {
+    if (err.code === '23505') return res.status(400).json({ error: 'Permission name must be unique.' });
+    res.status(500).json({ error: 'Permission creation failed.' });
+  }
+});
+
+// List Permissions
+app.get('/permissions', authenticateJWT, requireRole(['admin']), async (req, res) => {
+  try {
+    const permissions = await knex('permissions').select('*').orderBy('id');
+    res.json(permissions);
+  } catch (err) {
+    res.status(500).json({ error: 'Could not retrieve permissions.' });
+  }
+});
+
+// Update Permission
+app.put('/permissions/:id', authenticateJWT, requireRole(['admin']), async (req, res) => {
+  const schema = Joi.object({
+    name: Joi.string().min(2).max(32),
+    description: Joi.string().allow('').max(255)
+  });
+  const { error, value } = schema.validate(req.body);
+  if (error) return res.status(400).json({ error: error.details[0].message });
+  try {
+    const oldPermission = await knex('permissions').where({ id: req.params.id }).first();
+    if (!oldPermission) return res.status(404).json({ error: 'Permission not found.' });
+    await knex('permissions').where({ id: req.params.id }).update(value);
+    await knex('audit_logs').insert({
+      user_id: req.user.sub,
+      action: 'permission_update',
+      old_role: oldPermission.name,
+      new_role: value.name || oldPermission.name,
+      changed_by: req.user.email,
+      timestamp: new Date().toISOString()
+    });
+    res.json({ message: 'Permission updated.' });
+  } catch (err) {
+    res.status(500).json({ error: 'Permission update failed.' });
+  }
+});
+
+// Delete Permission
+app.delete('/permissions/:id', authenticateJWT, requireRole(['admin']), async (req, res) => {
+  try {
+    const oldPermission = await knex('permissions').where({ id: req.params.id }).first();
+    if (!oldPermission) return res.status(404).json({ error: 'Permission not found.' });
+    await knex('permissions').where({ id: req.params.id }).del();
+    await knex('audit_logs').insert({
+      user_id: req.user.sub,
+      action: 'permission_delete',
+      old_role: oldPermission.name,
+      new_role: null,
+      changed_by: req.user.email,
+      timestamp: new Date().toISOString()
+    });
+    res.json({ message: 'Permission deleted.' });
+  } catch (err) {
+    res.status(500).json({ error: 'Permission deletion failed.' });
+  }
+});
+
+  try {
+    const oldRole = await knex('roles').where({ id: req.params.id }).first();
+    if (!oldRole) return res.status(404).json({ error: 'Role not found.' });
+    await knex('roles').where({ id: req.params.id }).del();
+    await knex('audit_logs').insert({
+      user_id: req.user.sub,
+      action: 'role_delete',
+      old_role: oldRole.name,
+      new_role: null,
+      changed_by: req.user.email,
+      timestamp: new Date().toISOString()
+    });
+    res.json({ message: 'Role deleted.' });
+  } catch (err) {
+    res.status(500).json({ error: 'Role deletion failed.' });
+  }
+});
+
   const { userId, role } = req.body;
   if (!ROLES.includes(role)) return res.status(400).json({ error: 'Invalid role' });
   try {
@@ -269,6 +456,20 @@ const PORT = process.env.PORT || 3000;
 const CERT_PATH = process.env.CERT_PATH || './certs/cert.pem';
 const KEY_PATH = process.env.KEY_PATH || './certs/key.pem';
 
+// --- Startup check: Ensure at least one admin exists ---
+(async () => {
+  try {
+    const adminCount = await knex('users').where({ role: 'admin' }).count('id as count');
+    if (!adminCount[0] || Number(adminCount[0].count) === 0) {
+      logger.warn('No admin users found in the database! Please create an admin user immediately.');
+    } else {
+      logger.info(`Admin users found: ${adminCount[0].count}`);
+    }
+  } catch (err) {
+    logger.error('Error running admin user startup check:', err);
+  }
+})();
+
 if (require.main === module) {
   if (fs.existsSync(CERT_PATH) && fs.existsSync(KEY_PATH)) {
     const cert = fs.readFileSync(CERT_PATH);
@@ -277,7 +478,9 @@ if (require.main === module) {
       console.log(`Backend running with HTTPS on port ${PORT}`);
     });
   } else {
-    app.listen(PORT, '0.0.0.0', () => console.log(`Backend running with HTTP (dev only) on port ${PORT}`));
+    app.listen(PORT, '0.0.0.0', () => {
+      logger.info(`Backend running with HTTP (dev only) on port ${PORT}`);
+    });
     console.warn('Warning: HTTPS certs not found, running HTTP. For production, provide valid certs.');
   }
 }

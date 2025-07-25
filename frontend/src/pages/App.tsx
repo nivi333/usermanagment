@@ -6,6 +6,7 @@ import Register from '../components/common/Register';
 import Dashboard from '../components/dashboard/Dashboard';
 import UserManagement from '../components/users/UserManagement';
 import '../styles/App.css';
+import RoleManagement from './RoleManagement';
 
 const { Content } = Layout;
 
@@ -74,6 +75,10 @@ function App() {
               <Route 
                 path="/users" 
                 element={user && user.role === 'admin' ? <UserManagement user={user} onLogout={handleLogout} /> : <Navigate to="/dashboard" />} 
+              />
+              <Route
+                path="/role-management"
+                element={user && user.role === 'admin' ? <RoleManagement /> : <Navigate to="/dashboard" />}
               />
               <Route 
                 path="/" 

@@ -11,15 +11,30 @@ Document all API endpoints, schemas, and error codes in OpenAPI/Swagger to ensur
 - Keep documentation in version control
 
 ### Acceptance Criteria
-- [ ] All endpoints are documented in Swagger/OpenAPI
-- [ ] Example payloads and error codes provided
-- [ ] Documentation is versioned and updated with releases
+- [x] All endpoints are documented in Swagger/OpenAPI (openapi.yaml)
+- [x] Example payloads and error codes provided
+- [x] Swagger UI is integrated and available at `/docs`
+- [ ] Documentation is versioned and updated with releases (ongoing)
+
+### Implementation Progress
+- [x] OpenAPI 3.0 spec created for all endpoints (auth, user CRUD, RBAC, permissions, audit log)
+- [x] Example requests/responses and error codes included
+- [x] Swagger UI integrated for live, interactive API docs at `/docs`
+- [ ] Maintain and version documentation with future releases (To Do)
 
 ### Potential Tasks
-- Write OpenAPI spec for all endpoints
-- Add example requests/responses
-- Integrate Swagger UI
-- Review/update docs with each release
+- Review and update OpenAPI spec with new endpoints or changes
+- Add more detailed examples as needed
+- Ensure docs are versioned and updated with each release
+- Maintain contract tests to ensure implementation matches documentation
+
+### Contract/API Documentation Tests
+- [x] Contract tests implemented using Jest, Supertest, and OpenAPI-Backend
+- Test location: `backend/tests/contract/openapi-contract.test.ts`
+- Tests verify every documented endpoint is implemented and responds as expected, and that the OpenAPI spec is valid
+- To run: `npx jest tests/contract/openapi-contract.test.ts` (backend must be running)
+- If a test fails, review the error to fix either the implementation or documentation for alignment
+- Next: Integrate into CI/CD to ensure future changes remain compliant
 
 ### Dependencies
 - API endpoints implemented

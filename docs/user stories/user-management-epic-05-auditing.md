@@ -11,15 +11,21 @@ Ensure that all sensitive operations (user CRUD, role changes, authentication ev
 - Retain logs per compliance requirements (e.g., GDPR, SOC2)
 
 ### Acceptance Criteria
-- [ ] All critical actions are logged with full context
-- [ ] Logs include user, action, timestamp, and metadata
+- [x] All critical actions are logged with full context (user CRUD, role/permission changes, authentication, password reset)
+- [x] Logs include user, action, timestamp, and metadata (IP, user agent, attempted email, etc.)
 - [ ] Log retention meets compliance standards
 
+### Implementation Progress
+- [x] Audit logging integrated for user CRUD, role/permission changes, authentication events, and password reset
+- [x] `audit_logs` schema extended with `metadata` JSON column for contextual details
+- [x] Backend endpoints updated to insert audit log entries for all sensitive operations
+- [ ] Log retention policy to be configured (To Do)
+- [ ] Additional tests for logging coverage (To Do)
+
 ### Potential Tasks
-- Integrate audit logging in backend
-- Define log schema and storage
-- Configure log retention policies
-- Write tests for logging coverage
+- Extend audit logging to any new critical endpoints
+- Finalize and automate log retention policies
+- Expand test coverage for audit events
 
 ### Dependencies
 - CRUD, RBAC, and authentication features implemented
@@ -43,14 +49,22 @@ Store audit logs in a tamper-evident, centralized system to ensure their integri
 - Monitor for suspicious log access or changes
 
 ### Acceptance Criteria
-- [ ] Audit logs are immutable and protected
-- [ ] Only authorized users can access logs
-- [ ] Alerts for suspicious log access
+- [x] Audit logs are immutable and protected (API, DB permissions, triggers)
+- [x] Only authorized users can access logs (admin-only endpoint)
+- [ ] Alerts for suspicious log access (To Do)
+  - Monitoring and alerting for unusual or unauthorized log access is not yet implemented. Recommended approaches: database audit triggers, application-level logging of audit log queries, or integration with SIEM/monitoring tools.
+
+### Implementation Progress
+- [x] No API endpoints exist for updating or deleting audit logs
+- [x] Database permissions (migration) revoke UPDATE/DELETE on audit_logs for all users
+- [x] PostgreSQL triggers block any update/delete attempts, raising an exception
+- [x] Automated tests verify immutability
+- [ ] Monitoring/alerts for suspicious log access (To Do)
 
 ### Potential Tasks
-- Configure tamper-evident log storage
-- Implement access controls for logs
-- Set up monitoring and alerts
+- Integrate log access monitoring and alerting (e.g., send alerts on non-admin access attempts, excessive log reads, or failed access)
+- Periodically review DB permissions and trigger integrity
+- Review log access patterns and perform compliance reviews regularly
 
 ### Dependencies
 - Audit logging implemented
@@ -74,9 +88,18 @@ Provide secure APIs and UI components for authorized users to access, filter, an
 - Log access to audit logs themselves
 
 ### Acceptance Criteria
-- [ ] APIs and UI for audit log access
-- [ ] Filtering, pagination, and export supported
-- [ ] Access to logs is itself logged
+- [x] APIs for audit log access (admin-only, RBAC enforced)
+- [x] Filtering, pagination, and export (CSV/JSON) supported via query params
+- [x] Access to logs is itself logged in audit_logs
+- [ ] UI for audit log access (To Do)
+
+### Implementation Progress
+- [x] Backend /audit-log endpoint supports:
+  - Filtering by action, user, date range
+  - Pagination and total count
+  - Export as CSV or JSON
+  - Access logging (every read is itself logged with filters, export type, admin, IP, user agent)
+- [ ] Frontend UI for audit log viewing, filtering, and export (To Do)
 
 ### Potential Tasks
 - Implement audit log endpoints and UI

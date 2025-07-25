@@ -16,6 +16,42 @@ beforeAll(async () => {
   // Login again to get admin token with updated role
   login = await request(app).post('/login').send({ email: 'admin2@example.com', password: 'AdminPass1' });
   adminToken = login.body.token;
+  });
+
+  it('logs audit entries for role and permission changes', async () => {
+    // Get audit logs as admin
+    const res = await request(app)
+      .get('/audit-log')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(res.statusCode).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    // Check for at least one role and one permission action
+    const hasRoleLog = res.body.some(log => log.action && log.action.startsWith('role_'));
+    const hasPermLog = res.body.some(log => log.action && log.action.startsWith('permission_'));
+    expect(hasRoleLog).toBe(true);
+    expect(hasPermLog).toBe(true);
+  });
+
+  it('prevents update/delete on audit_logs table (immutability)', async () => {
+    const knex = require('knex')(require('./knexfile').development);
+    // Try to update
+    let error = null;
+    try {
+      await knex('audit_logs').update({ action: 'tampered' }).whereRaw('1=1');
+    } catch (e) {
+      error = e;
+    }
+    expect(error).not.toBeNull();
+    // Try to delete
+    error = null;
+    try {
+      await knex('audit_logs').del().whereRaw('1=1');
+    } catch (e) {
+      error = e;
+    }
+    expect(error).not.toBeNull();
+    await knex.destroy();
+  });
 });
 
 describe('RBAC Role & Permission Endpoints', () => {

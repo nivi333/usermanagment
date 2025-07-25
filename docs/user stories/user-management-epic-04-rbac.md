@@ -103,15 +103,16 @@ Log all changes to roles and permissions to support compliance, auditability, an
 - Retain logs per compliance requirements
 
 ### Acceptance Criteria
-- [ ] All role/permission changes are logged with full context
-- [ ] Logs are immutable and protected
-- [ ] Only authorized users can view logs
+- [x] All role/permission changes are logged with full context
+- [x] Logs are immutable and protected (API + DB enforced)
+- [x] Only authorized users can view logs (admin-only endpoint)
 
 ### Implementation Progress
-- [x] Audit log for role changes implemented and accessible
-- [ ] Secure log storage and immutability (To Do)
-- [ ] Restrict log access to authorized users only (To Do)
-- [ ] Tests for audit logging (To Do)
+- [x] Audit log for role/permission changes implemented and accessible
+- [x] Secure log storage and immutability (API: no update/delete; DB: migration to revoke update/delete)
+- [x] Restrict log access to authorized users only (admin-only)
+- [x] Tests for audit logging and immutability added
+- [ ] (Optional) Further hardening/documentation
 
 ### Potential Tasks
 - Integrate audit logging for RBAC changes

@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
+import { Card, Typography, Form, Input, Button, Table, Modal, Select, Alert, Space, message } from 'antd';
 
-console.log('RoleManagement component mounted');
+const { Title } = Typography;
 
 interface Role {
   id: number;
@@ -141,117 +142,141 @@ const RoleManagement: React.FC = () => {
   };
 
   return (
-    <div style={{ maxWidth: 800, margin: '2rem auto', padding: '2rem', background: '#fff', borderRadius: 8, boxShadow: '0 2px 8px #eee' }}>
-      <h2>Role Management</h2>
-      {error && <div style={{ color: 'red' }}>{error}</div>}
-      {success && <div style={{ color: 'green' }}>{success}</div>}
-      <section>
-        <h3>Roles</h3>
-        <form onSubmit={handleRoleSubmit} style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-          <input
-            type="text"
-            placeholder="Role name"
-            value={roleForm.name || ''}
-            onChange={e => setRoleForm(f => ({ ...f, name: e.target.value }))}
-            required
+    <Card style={{ maxWidth: 900, margin: '2rem auto', borderRadius: 12 }} bodyStyle={{ padding: 32 }}>
+      <Title level={2} style={{ marginBottom: 16 }}>Role Management</Title>
+      {error && <Alert type="error" message={error} showIcon style={{ marginBottom: 16 }} />}
+      {success && <Alert type="success" message={success} showIcon style={{ marginBottom: 16 }} />}
+      <Space direction="vertical" size={32} style={{ width: '100%' }}>
+        <Card type="inner" title="Roles" style={{ borderRadius: 8 }}>
+          <Form layout="inline" onFinish={handleRoleSubmit} style={{ marginBottom: 16 }}>
+            <Form.Item>
+              <Input
+                placeholder="Role name"
+                value={roleForm.name || ''}
+                onChange={e => setRoleForm(f => ({ ...f, name: e.target.value }))}
+                required
+                style={{ minWidth: 140 }}
+              />
+            </Form.Item>
+            <Form.Item>
+              <Input
+                placeholder="Description"
+                value={roleForm.description || ''}
+                onChange={e => setRoleForm(f => ({ ...f, description: e.target.value }))}
+                style={{ minWidth: 180 }}
+              />
+            </Form.Item>
+            <Form.Item>
+              <Button type="primary" htmlType="submit">{roleForm.id ? 'Update' : 'Add'} Role</Button>
+            </Form.Item>
+            {roleForm.id && (
+              <Form.Item>
+                <Button onClick={() => setRoleForm({})}>Cancel</Button>
+              </Form.Item>
+            )}
+          </Form>
+          <Table
+            dataSource={roles}
+            rowKey="id"
+            pagination={false}
+            bordered
+            columns={[
+              { title: 'Name', dataIndex: 'name' },
+              { title: 'Description', dataIndex: 'description' },
+              {
+                title: 'Permissions',
+                render: (_, role) => (
+                  <Button size="small" onClick={() => openPermModal(role)}>Manage</Button>
+                )
+              },
+              {
+                title: 'Actions',
+                render: (_, role) => (
+                  <Space>
+                    <Button size="small" onClick={() => setRoleForm(role)}>Edit</Button>
+                    <Button size="small" danger onClick={() => handleRoleDelete(role.id)}>Delete</Button>
+                  </Space>
+                )
+              }
+            ]}
           />
-          <input
-            type="text"
-            placeholder="Description"
-            value={roleForm.description || ''}
-            onChange={e => setRoleForm(f => ({ ...f, description: e.target.value }))}
+          <Modal
+            open={permModalOpen}
+            title={`Manage Permissions for: ${permRole?.name}`}
+            onCancel={() => setPermModalOpen(false)}
+            onOk={handlePermAssign}
+            okText="Save"
+            confirmLoading={permLoading}
+            cancelText="Cancel"
+          >
+            {permLoading ? (
+              <div>Loading...</div>
+            ) : (
+              <Select
+                mode="multiple"
+                style={{ width: '100%' }}
+                value={permRolePerms}
+                onChange={setPermRolePerms}
+                placeholder="Select permissions"
+                optionFilterProp="children"
+              >
+                {permissions.map(p => (
+                  <Select.Option key={p.id} value={p.id}>{p.name} - {p.description}</Select.Option>
+                ))}
+              </Select>
+            )}
+          </Modal>
+        </Card>
+        <Card type="inner" title="Permissions" style={{ borderRadius: 8 }}>
+          <Form layout="inline" onFinish={handlePermissionSubmit} style={{ marginBottom: 16 }}>
+            <Form.Item>
+              <Input
+                placeholder="Permission name"
+                value={permissionForm.name || ''}
+                onChange={e => setPermissionForm(f => ({ ...f, name: e.target.value }))}
+                required
+                style={{ minWidth: 140 }}
+              />
+            </Form.Item>
+            <Form.Item>
+              <Input
+                placeholder="Description"
+                value={permissionForm.description || ''}
+                onChange={e => setPermissionForm(f => ({ ...f, description: e.target.value }))}
+                style={{ minWidth: 180 }}
+              />
+            </Form.Item>
+            <Form.Item>
+              <Button type="primary" htmlType="submit">{permissionForm.id ? 'Update' : 'Add'} Permission</Button>
+            </Form.Item>
+            {permissionForm.id && (
+              <Form.Item>
+                <Button onClick={() => setPermissionForm({})}>Cancel</Button>
+              </Form.Item>
+            )}
+          </Form>
+          <Table
+            dataSource={permissions}
+            rowKey="id"
+            pagination={false}
+            bordered
+            columns={[
+              { title: 'Name', dataIndex: 'name' },
+              { title: 'Description', dataIndex: 'description' },
+              {
+                title: 'Actions',
+                render: (_, perm) => (
+                  <Space>
+                    <Button size="small" onClick={() => setPermissionForm(perm)}>Edit</Button>
+                    <Button size="small" danger onClick={() => handlePermissionDelete(perm.id)}>Delete</Button>
+                  </Space>
+                )
+              }
+            ]}
           />
-          <button type="submit">{roleForm.id ? 'Update' : 'Add'} Role</button>
-          {roleForm.id && <button type="button" onClick={() => setRoleForm({})}>Cancel</button>}
-        </form>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr><th>Name</th><th>Description</th><th>Permissions</th><th>Actions</th></tr>
-          </thead>
-          <tbody>
-            {roles.map(role => (
-              <tr key={role.id}>
-                <td>{role.name}</td>
-                <td>{role.description}</td>
-                <td>
-                  <button onClick={() => openPermModal(role)}>Manage Permissions</button>
-                </td>
-                <td>
-                  <button onClick={() => setRoleForm(role)}>Edit</button>
-                  <button onClick={() => handleRoleDelete(role.id)}>Delete</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {/* Permission Assignment Modal */}
-        {permModalOpen && permRole && (
-          <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-            <div style={{ background: '#fff', padding: 32, borderRadius: 8, minWidth: 350 }}>
-              <h4>Manage Permissions for: {permRole.name}</h4>
-              {permLoading ? <div>Loading...</div> : (
-                <>
-                  <select
-                    multiple
-                    style={{ width: '100%', minHeight: 120 }}
-                    value={permRolePerms.map(String)}
-                    onChange={e => {
-                      const options = Array.from(e.target.selectedOptions).map(opt => Number(opt.value));
-                      setPermRolePerms(options);
-                    }}
-                  >
-                    {permissions.map(p => (
-                      <option key={p.id} value={p.id}>{p.name} - {p.description}</option>
-                    ))}
-                  </select>
-                  <div style={{ marginTop: 16, display: 'flex', gap: 8 }}>
-                    <button onClick={handlePermAssign} disabled={permLoading}>Save</button>
-                    <button onClick={() => setPermModalOpen(false)}>Cancel</button>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        )}
-      </section>
-      <section style={{ marginTop: 40 }}>
-        <h3>Permissions</h3>
-        <form onSubmit={handlePermissionSubmit} style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-          <input
-            type="text"
-            placeholder="Permission name"
-            value={permissionForm.name || ''}
-            onChange={e => setPermissionForm(f => ({ ...f, name: e.target.value }))}
-            required
-          />
-          <input
-            type="text"
-            placeholder="Description"
-            value={permissionForm.description || ''}
-            onChange={e => setPermissionForm(f => ({ ...f, description: e.target.value }))}
-          />
-          <button type="submit">{permissionForm.id ? 'Update' : 'Add'} Permission</button>
-          {permissionForm.id && <button type="button" onClick={() => setPermissionForm({})}>Cancel</button>}
-        </form>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr><th>Name</th><th>Description</th><th>Actions</th></tr>
-          </thead>
-          <tbody>
-            {permissions.map(perm => (
-              <tr key={perm.id}>
-                <td>{perm.name}</td>
-                <td>{perm.description}</td>
-                <td>
-                  <button onClick={() => setPermissionForm(perm)}>Edit</button>
-                  <button onClick={() => handlePermissionDelete(perm.id)}>Delete</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
-    </div>
+        </Card>
+      </Space>
+    </Card>
   );
 };
 

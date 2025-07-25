@@ -12,7 +12,18 @@ const rateLimit = require('express-rate-limit');
 const bcrypt = require('bcrypt');
 const knex = require('knex')(require('./knexfile')[process.env.NODE_ENV || 'development']);
 
+// Swagger UI setup
+const swaggerUi = require('swagger-ui-express');
+const YAML = require('yamljs');
+const swaggerDocument = YAML.load('./openapi.yaml');
+
 const app = express();
+
+// Serve Swagger UI at /docs
+app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+
+// Versioned API router
+const apiV1 = express.Router();
 
 // Winston logger (console only for now)
 const logger = winston.createLogger({
@@ -47,8 +58,45 @@ app.use(cors({
 
 app.use(bodyParser.json());
 
+// Mount versioned API at /api/v1
+app.use('/api/v1', apiV1);
+
 // --- GET /users endpoint for admin user listing ---
-app.get('/users', authenticateJWT, requireRole(['admin']), async (req, res) => {
+apiV1.get('/users', authenticateJWT, requireRole(['admin']), async (req, res) => {
+
+// --- PUT /users/:id endpoint for admin user update ---
+apiV1.put('/users/:id', authenticateJWT, requireRole(['admin']), async (req, res) => {
+  const schema = Joi.object({
+    email: Joi.string().email(),
+    role: Joi.string().valid(...ROLES)
+  });
+  const { error, value } = schema.validate(req.body);
+  if (error) return res.status(400).json({ error: error.details[0].message });
+  const { email, role } = value;
+  try {
+    const user = await knex('users').where({ id: req.params.id }).first();
+    if (!user) return res.status(404).json({ error: 'User not found.' });
+    const updates = {};
+    if (email && email !== user.email) updates.email = email;
+    if (role && role !== user.role) updates.role = role;
+    if (Object.keys(updates).length === 0) return res.status(400).json({ error: 'No changes provided.' });
+    await knex('users').where({ id: req.params.id }).update(updates);
+    // Audit log
+    await knex('audit_logs').insert({
+      user_id: req.params.id,
+      action: 'user_update',
+      old_role: user.role,
+      new_role: role || user.role,
+      changed_by: req.user.email,
+      timestamp: new Date().toISOString()
+    });
+    const updated = await knex('users').where({ id: req.params.id }).first();
+    res.json({ message: 'User updated.', user: { id: updated.id, email: updated.email, role: updated.role } });
+  } catch (err) {
+    logger.error('User update error:', err);
+    res.status(500).json({ error: 'User update failed.' });
+  }
+});
   try {
     const users = await knex('users').select('id', 'email', 'role', 'created_at', 'updated_at').orderBy('id');
     res.json(users);
@@ -74,7 +122,7 @@ function validatePassword(password) {
 const crypto = require('crypto');
 
 // Request password reset
-app.post('/request-password-reset', async (req, res) => {
+apiV1.post('/request-password-reset', async (req, res) => {
   const { email } = req.body;
   if (!email) return res.status(400).json({ error: 'Email required.' });
   try {
@@ -101,7 +149,7 @@ app.post('/request-password-reset', async (req, res) => {
 });
 
 // Reset password
-app.post('/reset-password', async (req, res) => {
+apiV1.post('/reset-password', async (req, res) => {
   const { token, newPassword } = req.body;
   if (!token || !newPassword) return res.status(400).json({ error: 'Token and new password required.' });
   if (!validatePassword(newPassword)) {
@@ -130,7 +178,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'devsecret';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1h';
 
 // Registration endpoint
-app.post('/register', async (req, res) => {
+apiV1.post('/register', async (req, res) => {
   const { email, password } = req.body;
   if (!validatePassword(password)) {
     console.error(`[REGISTER] Validation failed for email: ${email} - Password does not meet policy.`);
@@ -153,7 +201,7 @@ app.post('/register', async (req, res) => {
 });
 
 // Login endpoint with rate limiting
-app.post('/login', loginLimiter, async (req, res) => {
+apiV1.post('/login', loginLimiter, async (req, res) => {
   console.log('[LOGIN ATTEMPT]', req.body);
   const { email, password } = req.body;
   try {
@@ -161,12 +209,40 @@ app.post('/login', loginLimiter, async (req, res) => {
     console.log('[LOGIN DEBUG] User found:', user);
     if (!user) {
       console.log('[LOGIN DEBUG] No user found for email:', email);
+      // Audit log: failed login
+      await knex('audit_logs').insert({
+        user_id: null,
+        action: 'login_failed',
+        old_role: null,
+        new_role: null,
+        changed_by: email,
+        timestamp: new Date().toISOString(),
+        metadata: JSON.stringify({
+          email,
+          ip: req.ip,
+          userAgent: req.headers['user-agent'] || null
+        })
+      });
       return res.status(401).json({ error: 'Invalid credentials.' });
     }
     const passwordMatch = await bcrypt.compare(password, user.password);
     console.log('[LOGIN DEBUG] Password match:', passwordMatch);
     if (!passwordMatch) {
       console.log('[LOGIN DEBUG] Password did not match for email:', email);
+      // Audit log: failed login (wrong password)
+      await knex('audit_logs').insert({
+        user_id: user.id,
+        action: 'login_failed',
+        old_role: user.role,
+        new_role: user.role,
+        changed_by: email,
+        timestamp: new Date().toISOString(),
+        metadata: JSON.stringify({
+          email,
+          ip: req.ip,
+          userAgent: req.headers['user-agent'] || null
+        })
+      });
       return res.status(401).json({ error: 'Invalid credentials.' });
     }
     const token = jwt.sign(
@@ -174,6 +250,20 @@ app.post('/login', loginLimiter, async (req, res) => {
       JWT_SECRET,
       { expiresIn: JWT_EXPIRES_IN }
     );
+    // Audit log: successful login
+    await knex('audit_logs').insert({
+      user_id: user.id,
+      action: 'login_success',
+      old_role: user.role,
+      new_role: user.role,
+      changed_by: email,
+      timestamp: new Date().toISOString(),
+      metadata: JSON.stringify({
+        email,
+        ip: req.ip,
+        userAgent: req.headers['user-agent'] || null
+      })
+    });
     res.json({ token });
   } catch (err) {
     console.error('Login error:', err);
@@ -204,11 +294,11 @@ function requireRole(requiredRoles) {
 }
 
 // Admin-only: assign/modify user role
-app.post('/assign-role', authenticateJWT, requireRole(['admin']), async (req, res) => {
+apiV1.post('/assign-role', authenticateJWT, requireRole(['admin']), async (req, res) => {
 
 // --- RBAC Role CRUD Endpoints ---
 // Create Role
-app.post('/roles', authenticateJWT, requireRole(['admin']), async (req, res) => {
+apiV1.post('/roles', authenticateJWT, requireRole(['admin']), async (req, res) => {
   const schema = Joi.object({
     name: Joi.string().min(2).max(32).required(),
     description: Joi.string().allow('').max(255)
@@ -233,7 +323,7 @@ app.post('/roles', authenticateJWT, requireRole(['admin']), async (req, res) => 
 });
 
 // List Roles
-app.get('/roles', authenticateJWT, requireRole(['admin']), async (req, res) => {
+apiV1.get('/roles', authenticateJWT, requireRole(['admin']), async (req, res) => {
   try {
     const roles = await knex('roles').select('*').orderBy('id');
     res.json(roles);
@@ -243,7 +333,7 @@ app.get('/roles', authenticateJWT, requireRole(['admin']), async (req, res) => {
 });
 
 // Update Role
-app.put('/roles/:id', authenticateJWT, requireRole(['admin']), async (req, res) => {
+apiV1.put('/roles/:id', authenticateJWT, requireRole(['admin']), async (req, res) => {
   const schema = Joi.object({
     name: Joi.string().min(2).max(32),
     description: Joi.string().allow('').max(255)
@@ -269,11 +359,11 @@ app.put('/roles/:id', authenticateJWT, requireRole(['admin']), async (req, res) 
 });
 
 // Delete Role
-app.delete('/roles/:id', authenticateJWT, requireRole(['admin']), async (req, res) => {
+apiV1.delete('/roles/:id', authenticateJWT, requireRole(['admin']), async (req, res) => {
 
 // --- RBAC Permission CRUD Endpoints ---
 // Create Permission
-app.post('/permissions', authenticateJWT, requireRole(['admin']), async (req, res) => {
+apiV1.post('/permissions', authenticateJWT, requireRole(['admin']), async (req, res) => {
   const schema = Joi.object({
     name: Joi.string().min(2).max(32).required(),
     description: Joi.string().allow('').max(255)
@@ -298,7 +388,7 @@ app.post('/permissions', authenticateJWT, requireRole(['admin']), async (req, re
 });
 
 // List Permissions
-app.get('/permissions', authenticateJWT, requireRole(['admin']), async (req, res) => {
+apiV1.get('/permissions', authenticateJWT, requireRole(['admin']), async (req, res) => {
   try {
     const permissions = await knex('permissions').select('*').orderBy('id');
     res.json(permissions);
@@ -308,7 +398,7 @@ app.get('/permissions', authenticateJWT, requireRole(['admin']), async (req, res
 });
 
 // Update Permission
-app.put('/permissions/:id', authenticateJWT, requireRole(['admin']), async (req, res) => {
+apiV1.put('/permissions/:id', authenticateJWT, requireRole(['admin']), async (req, res) => {
   const schema = Joi.object({
     name: Joi.string().min(2).max(32),
     description: Joi.string().allow('').max(255)
@@ -334,7 +424,7 @@ app.put('/permissions/:id', authenticateJWT, requireRole(['admin']), async (req,
 });
 
 // Delete Permission
-app.delete('/permissions/:id', authenticateJWT, requireRole(['admin']), async (req, res) => {
+apiV1.delete('/permissions/:id', authenticateJWT, requireRole(['admin']), async (req, res) => {
   try {
     const oldPermission = await knex('permissions').where({ id: req.params.id }).first();
     if (!oldPermission) return res.status(404).json({ error: 'Permission not found.' });
@@ -393,7 +483,7 @@ app.delete('/permissions/:id', authenticateJWT, requireRole(['admin']), async (r
 });
 
 // Admin-only: create new user
-app.post('/users', authenticateJWT, requireRole(['admin']), async (req, res) => {
+apiV1.post('/users', authenticateJWT, requireRole(['admin']), async (req, res) => {
   console.log('DEBUG: POST /users called', req.body);
   const schema = Joi.object({
     email: Joi.string().email().required(),
@@ -437,22 +527,93 @@ app.post('/users', authenticateJWT, requireRole(['admin']), async (req, res) => 
 });
 
 // Protected example endpoint
-app.get('/protected', authenticateJWT, requireRole(['admin', 'manager', 'user']), (req, res) => {
+apiV1.get('/protected', authenticateJWT, requireRole(['admin', 'manager', 'user']), (req, res) => {
   res.json({ message: 'Protected data', user: req.user });
 });
 
-// View audit log (admin only)
-app.get('/audit-log', authenticateJWT, requireRole(['admin']), async (req, res) => {
+// View audit log (admin only, with filtering, pagination, export, and access logging)
+const { Parser: Json2csvParser } = require('json2csv');
+apiV1.get('/audit-log', authenticateJWT, requireRole(['admin']), async (req, res) => {
+  const { action, user, from, to, page = 1, pageSize = 50, exportFormat } = req.query;
+  let query = knex('audit_logs').select('*');
+  if (action) query = query.where('action', action);
+  if (user) query = query.where('changed_by', user);
+  if (from) query = query.where('timestamp', '>=', from);
+  if (to) query = query.where('timestamp', '<=', to);
+  const pageNum = Math.max(Number(page), 1);
+  const size = Math.max(Number(pageSize), 1);
+  const offset = (pageNum - 1) * size;
+
+  // Count total for pagination
+  const totalQuery = query.clone().clearSelect().count('* as total');
+  let total = 0;
   try {
-    const logs = await knex('audit_logs').select('*').orderBy('timestamp', 'desc').limit(100);
-    res.json(logs);
+    const totalResult = await totalQuery;
+    total = totalResult[0] ? Number(totalResult[0].total) : 0;
   } catch (err) {
-    res.status(500).json({ error: 'Could not retrieve audit logs.' });
+    total = 0;
   }
+
+  // Get paginated logs
+  let logs = [];
+  try {
+    logs = await query.orderBy('timestamp', 'desc').limit(size).offset(offset);
+  } catch (err) {
+    return res.status(500).json({ error: 'Could not retrieve audit logs.' });
+  }
+
+  // Log this access event
+  try {
+    await knex('audit_logs').insert({
+      user_id: req.user.sub,
+      action: 'audit_log_access',
+      old_role: req.user.role,
+      new_role: req.user.role,
+      changed_by: req.user.email,
+      timestamp: new Date().toISOString(),
+      metadata: JSON.stringify({
+        filters: { action, user, from, to },
+        exportFormat: exportFormat || 'json',
+        page: pageNum,
+        pageSize: size,
+        ip: req.ip,
+        userAgent: req.headers['user-agent'] || null
+      })
+    });
+  } catch (err) {
+    // Don't block response if audit log insert fails
+  }
+
+  // Export support
+  if (exportFormat === 'csv') {
+    try {
+      const parser = new Json2csvParser();
+      const csv = parser.parse(logs);
+      res.header('Content-Type', 'text/csv');
+      res.attachment('audit_logs.csv');
+      return res.send(csv);
+    } catch (err) {
+      return res.status(500).json({ error: 'Could not export audit logs as CSV.' });
+    }
+  } else if (exportFormat === 'json') {
+    res.header('Content-Type', 'application/json');
+    res.attachment('audit_logs.json');
+    return res.send(JSON.stringify(logs, null, 2));
+  }
+
+  // Default: paginated JSON
+  res.json({
+    data: logs,
+    pagination: {
+      page: pageNum,
+      pageSize: size,
+      total
+    }
+  });
 });
 
 // Token refresh endpoint (optional, for demo)
-app.post('/refresh', authenticateJWT, (req, res) => {
+apiV1.post('/refresh', authenticateJWT, (req, res) => {
   const user = req.user;
   const newToken = jwt.sign(
     { sub: user.sub, username: user.username, role: user.role },

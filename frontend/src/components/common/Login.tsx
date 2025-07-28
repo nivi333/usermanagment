@@ -74,6 +74,11 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             rules={[
               { required: true, message: 'Please input your password!' },
               { min: 8, message: 'Password must be at least 8 characters!' },
+              {
+                pattern: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/,
+                message:
+                  'Password must be at least 8 characters, include uppercase, lowercase, and digit.',
+              },
             ]}
           >
             <Input.Password prefix={<LockOutlined />} placeholder="Password" />

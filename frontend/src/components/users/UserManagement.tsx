@@ -12,7 +12,7 @@ import {
   Select,
   Space,
   Avatar,
-  message,
+  notification,
   Popconfirm,
   Tag,
   Alert,
@@ -40,13 +40,9 @@ interface User {
   role: string;
 }
 
-interface UserManagementProps {
-  onLogout: () => void;
-}
-
 import { useAuth } from '../../context/AuthContext';
 
-const UserManagement: React.FC<UserManagementProps> = ({ onLogout }) => {
+const UserManagement: React.FC = () => {
   const { user, isAdmin } = useAuth();
 
   const [users, setUsers] = useState<User[]>([]);
@@ -71,7 +67,10 @@ const UserManagement: React.FC<UserManagementProps> = ({ onLogout }) => {
       const response = await userAPI.getUsers();
       setUsers(response.data);
     } catch (error) {
-      message.error('Failed to fetch users');
+      notification.error({
+        message: 'Error',
+        description: 'Failed to fetch users. Please try again later.',
+      });
     } finally {
       setLoading(false);
     }
@@ -84,7 +83,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ onLogout }) => {
   if (!user) return null; // Prevent null errors
 
   const handleLogout = () => {
-    onLogout();
+    localStorage.removeItem('token');
     navigate('/login');
   };
 
@@ -106,10 +105,16 @@ const UserManagement: React.FC<UserManagementProps> = ({ onLogout }) => {
   const handleDeleteUser = async (userId: number) => {
     try {
       await userAPI.deleteUser(userId);
-      message.success('User deleted successfully');
+      notification.success({
+        message: 'Success',
+        description: 'User deleted successfully.',
+      });
       fetchUsers();
     } catch (error) {
-      message.error('Failed to delete user');
+      notification.error({
+        message: 'Error',
+        description: 'Failed to delete user. Please try again.',
+      });
     }
   };
 
@@ -118,26 +123,23 @@ const UserManagement: React.FC<UserManagementProps> = ({ onLogout }) => {
       const values = await form.validateFields();
       if (editingUser) {
         await userAPI.updateUser(editingUser.id, values);
-        message.success('User updated successfully.', 3);
+        notification.success({
+          message: 'Success',
+          description: 'User updated successfully.',
+        });
       } else {
-        const res = await userAPI.createUser(values);
-        message.success(res?.data?.message || 'User created successfully.', 3);
+        await userAPI.createUser(values);
+        notification.success({
+          message: 'Success',
+          description: 'User created successfully.',
+        });
       }
       setModalVisible(false);
       fetchUsers();
     } catch (error: any) {
-      let errMsg = 'Failed to save user';
-      if (error?.response?.status === 403) {
-        errMsg = 'You do not have permission to perform this action or your session has expired.';
-      } else if (error?.response?.data?.error) {
-        errMsg = error.response.data.error;
-      } else if (error?.message) {
-        errMsg = error.message;
-      }
-      // Always log the error for debugging
-      // eslint-disable-next-line no-console
-      console.error('User creation error:', error);
-      message.error(errMsg, 4);
+      const description =
+        error.response?.data?.error || 'An unexpected error occurred. Please try again.';
+      notification.error({ message: 'Error', description });
     }
   };
 

@@ -27,7 +27,7 @@ exports.up = async function(knex) {
       updated_at: knex.fn.now()
     });
     
-    console.log('Admin user nivetha22000@gmail.com created with password: admin123');
+    console.log('Admin user nivetha22000@gmail.com created with password: Admin1234');
   } else {
     // Update existing user to admin role
     await knex('users')

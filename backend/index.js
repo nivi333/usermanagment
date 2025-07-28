@@ -61,8 +61,84 @@ app.use(bodyParser.json());
 // Mount versioned API at /api/v1
 app.use('/api/v1', apiV1);
 
+// JWT authentication middleware
+const authenticateJWT = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) {
+    return res.status(401).json({ error: 'Authorization header missing' });
+  }
+  const token = authHeader.split(' ')[1];
+  if (!token) {
+    return res.status(401).json({ error: 'Token required' });
+  }
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-super-secret-jwt-key-2025');
+    req.user = decoded;
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+};
+
+// Role-based access control middleware
+const requireRole = (roles) => {
+  return (req, res, next) => {
+    if (!req.user || !roles.includes(req.user.role)) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+    next();
+  };
+};
+
 // --- GET /users endpoint for admin user listing ---
 apiV1.get('/users', authenticateJWT, requireRole(['admin']), async (req, res) => {
+  try {
+    const users = await knex('users').select('id', 'email', 'role', 'created_at', 'updated_at').orderBy('id');
+    res.json(users);
+  } catch (err) {
+    logger.error('Failed to fetch users:', err);
+    res.status(500).json({ error: 'Could not fetch users.' });
+  }
+});
+
+// --- POST /users endpoint for admin user creation ---
+apiV1.post('/users', authenticateJWT, requireRole(['admin']), async (req, res) => {
+  const schema = Joi.object({
+    email: Joi.string().email().required(),
+    password: Joi.string().required(),
+    role: Joi.string().valid(...ROLES).required()
+  });
+
+  const { error, value } = schema.validate(req.body);
+  if (error) {
+    return res.status(400).json({ error: error.details[0].message });
+  }
+
+  const { email, password, role } = value;
+
+  if (!validatePassword(password)) {
+    return res.status(400).json({ error: 'Password must be at least 8 characters, include upper, lower, and digit.' });
+  }
+
+  try {
+    const existingUser = await knex('users').where({ email }).first();
+    if (existingUser) {
+      return res.status(409).json({ error: 'Email already in use.' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const [newUser] = await knex('users').insert({
+      email,
+      password: hashedPassword,
+      role
+    }).returning(['id', 'email', 'role']);
+
+    res.status(201).json(newUser);
+  } catch (err) {
+    logger.error('User creation error:', err);
+    res.status(500).json({ error: 'User creation failed.' });
+  }
+});
 
 // --- PUT /users/:id endpoint for admin user update ---
 apiV1.put('/users/:id', authenticateJWT, requireRole(['admin']), async (req, res) => {
@@ -97,12 +173,22 @@ apiV1.put('/users/:id', authenticateJWT, requireRole(['admin']), async (req, res
     res.status(500).json({ error: 'User update failed.' });
   }
 });
+
+// --- DELETE /users/:id endpoint for admin user deletion ---
+apiV1.delete('/users/:id', authenticateJWT, requireRole(['admin']), async (req, res) => {
   try {
-    const users = await knex('users').select('id', 'email', 'role', 'created_at', 'updated_at').orderBy('id');
-    res.json(users);
+    const user = await knex('users').where({ id: req.params.id }).first();
+    if (!user) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+    if (user.email === req.user.email) {
+        return res.status(400).json({ error: 'Cannot delete your own account.' });
+    }
+    await knex('users').where({ id: req.params.id }).del();
+    res.status(200).json({ message: 'User deleted successfully.' });
   } catch (err) {
-    logger.error('Failed to fetch users:', err);
-    res.status(500).json({ error: 'Could not fetch users.' });
+    logger.error('User deletion error:', err);
+    res.status(500).json({ error: 'User deletion failed.' });
   }
 });
 
@@ -172,6 +258,45 @@ apiV1.post('/reset-password', async (req, res) => {
 });
 
 const ROLES = ['admin', 'manager', 'user'];
+
+// --- RBAC Roles & Permissions Endpoints ---
+
+// Get all roles
+apiV1.get('/roles', authenticateJWT, requireRole(['admin']), async (req, res) => {
+  try {
+    const roles = await knex('roles').select('*');
+    res.json(roles);
+  } catch (err) {
+    logger.error('Failed to fetch roles:', err);
+    res.status(500).json({ error: 'Could not fetch roles.' });
+  }
+});
+
+// Get all permissions
+apiV1.get('/permissions', authenticateJWT, requireRole(['admin']), async (req, res) => {
+  try {
+    const permissions = await knex('permissions').select('*');
+    res.json(permissions);
+  } catch (err) {
+    logger.error('Failed to fetch permissions:', err);
+    res.status(500).json({ error: 'Could not fetch permissions.' });
+  }
+});
+
+// Add a new role
+apiV1.post('/roles', authenticateJWT, requireRole(['admin']), async (req, res) => {
+  const { name, description } = req.body;
+  if (!name) {
+    return res.status(400).json({ error: 'Role name is required.' });
+  }
+  try {
+    const [newRole] = await knex('roles').insert({ name, description }).returning('*');
+    res.status(201).json(newRole);
+  } catch (err) {
+    logger.error('Failed to create role:', err);
+    res.status(500).json({ error: 'Could not create role.' });
+  }
+});
 
 
 const JWT_SECRET = process.env.JWT_SECRET || 'devsecret';
@@ -271,27 +396,7 @@ apiV1.post('/login', loginLimiter, async (req, res) => {
   }
 });
 
-// Middleware to protect endpoints
-function authenticateJWT(req, res, next) {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) return res.sendStatus(401);
-  const token = authHeader.split(' ')[1];
-  jwt.verify(token, JWT_SECRET, (err, user) => {
-    if (err) return res.sendStatus(403);
-    req.user = user;
-    next();
-  });
-}
-
-// RBAC middleware
-function requireRole(requiredRoles) {
-  return (req, res, next) => {
-    if (!req.user || !requiredRoles.includes(req.user.role)) {
-      return res.status(403).json({ error: 'Forbidden: insufficient role' });
-    }
-    next();
-  };
-}
+// Note: authenticateJWT and requireRole are already defined above
 
 // Admin-only: assign/modify user role
 apiV1.post('/assign-role', authenticateJWT, requireRole(['admin']), async (req, res) => {
@@ -623,7 +728,7 @@ apiV1.post('/refresh', authenticateJWT, (req, res) => {
   res.json({ token: newToken });
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 const CERT_PATH = process.env.CERT_PATH || './certs/cert.pem';
 const KEY_PATH = process.env.KEY_PATH || './certs/key.pem';
 

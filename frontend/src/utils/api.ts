@@ -1,92 +1,106 @@
-import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
-import type { InternalAxiosRequestConfig } from 'axios';
+import axios, { AxiosInstance, AxiosResponse } from 'axios';
 
-// Create axios instance with base configuration
-const api: AxiosInstance = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:3000',
+// Base URL for all API calls
+const BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api/v1';
+
+// 1. Public API instance for non-authenticated routes (login, register)
+const publicApi = axios.create({
+  baseURL: BASE_URL,
   timeout: 10000,
 });
 
-// Debug: Log all requests
-api.interceptors.request.use((config) => {
-  console.log(
-  '[API REQUEST]',
-    config.method?.toUpperCase(),
-    (config.baseURL ?? '') + (config.url ?? ''),
-    config.data || '',
+// 2. Authenticated API instance with JWT token in Authorization header
+const createAuthenticatedApi = (): AxiosInstance => {
+  const instance = axios.create({
+    baseURL: BASE_URL,
+    timeout: 10000,
+  });
+
+  // Request interceptor to add Authorization header
+  instance.interceptors.request.use(
+    (config) => {
+      const token = localStorage.getItem('token');
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+      return config;
+    },
+    (error) => {
+      return Promise.reject(error);
+    },
   );
 
+  // Response interceptor to handle authentication errors
+  instance.interceptors.response.use(
+    (response: AxiosResponse) => response,
+    (error) => {
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        // Clear invalid token
+        localStorage.removeItem('token');
+        // Redirect to login only if not already on a public page
+        if (
+          !window.location.pathname.includes('/login') &&
+          !window.location.pathname.includes('/register')
+        ) {
+          window.location.href = '/login';
+        }
+      }
+      return Promise.reject(error);
+    },
+  );
 
-  return config;
-});
+  return instance;
+};
 
-// Debug: Log all responses and errors
-api.interceptors.response.use(
-  (response) => {
-    console.log('[API RESPONSE]', response.config.url, response.status, response.data);
-    return response;
-  },
-  (error) => {
-    if (error.response) {
-      console.error('[API ERROR]', error.config.url, error.response.status, error.response.data);
-    } else {
-      console.error('[API ERROR]', error.message);
-    }
-    return Promise.reject(error);
-  },
-);
+// Getter to create a fresh authenticated instance for each call
+const getAuthenticatedApi = () => createAuthenticatedApi();
 
-// Add request interceptor to include auth token
+// 3. API endpoint definitions
 
-api.interceptors.request.use(
-  (config: InternalAxiosRequestConfig) => {
-    const token = localStorage.getItem('token');
-    if (token && config.headers) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  },
-);
-
-// Add response interceptor to handle common errors
-api.interceptors.response.use(
-  (response: AxiosResponse) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      // Token expired or invalid
-      localStorage.removeItem('token');
-      window.location.href = '/login';
-    }
-    return Promise.reject(error);
-  },
-);
-
-// Auth API calls
+// Auth API: Uses public instance (no authentication required)
 export const authAPI = {
   login: (credentials: { email: string; password: string }) =>
-    api.post('/api/v1/login', credentials),
+    publicApi.post('/login', credentials),
   register: (userData: { email: string; password: string }) =>
-    api.post('/api/v1/register', userData),
-  refreshToken: () => api.post('/refresh'),
+    publicApi.post('/register', userData),
 };
 
-// User API calls
+// User API: Uses authenticated instance (requires JWT token)
 export const userAPI = {
-  getUsers: () => api.get('/users'),
+  getUsers: () => getAuthenticatedApi().get('/users'),
   createUser: (userData: { email: string; password: string; role: string }) =>
-    api.post('/users', userData),
+    getAuthenticatedApi().post('/users', userData),
   updateUser: (id: number, userData: { email?: string; password?: string; role?: string }) =>
-    api.put(`/users/${id}`, userData),
-  deleteUser: (id: number) => api.delete(`/users/${id}`),
-  assignRole: (userId: number, role: string) => api.post('/assign-role', { userId, role }),
+    getAuthenticatedApi().put(`/users/${id}`, userData),
+  deleteUser: (id: number) => getAuthenticatedApi().delete(`/users/${id}`),
+  assignRole: (userId: number, role: string) =>
+    getAuthenticatedApi().post('/assign-role', { userId, role }),
 };
 
-// Audit API calls
+// Audit API: Uses authenticated instance (requires JWT token)
 export const auditAPI = {
-  getAuditLogs: () => api.get('/audit-log'),
+  getAuditLogs: () => getAuthenticatedApi().get('/audit-log'),
 };
 
-export default api;
+// Roles API: Uses authenticated instance (requires JWT token)
+export const rolesAPI = {
+  getRoles: () => getAuthenticatedApi().get('/roles'),
+  createRole: (roleData: { name: string; description: string }) =>
+    getAuthenticatedApi().post('/roles', roleData),
+  updateRole: (id: number, roleData: { name?: string; description?: string }) =>
+    getAuthenticatedApi().put(`/roles/${id}`, roleData),
+  deleteRole: (id: number) => getAuthenticatedApi().delete(`/roles/${id}`),
+  getRolePermissions: (roleId: number) => getAuthenticatedApi().get(`/roles/${roleId}/permissions`),
+  updateRolePermissions: (roleId: number, permissions: number[]) =>
+    getAuthenticatedApi().put(`/roles/${roleId}/permissions`, { permissions }),
+};
+
+// Permissions API: Uses authenticated instance (requires JWT token)
+export const permissionsAPI = {
+  getPermissions: () => getAuthenticatedApi().get('/permissions'),
+  createPermission: (permissionData: { name: string; description: string }) =>
+    getAuthenticatedApi().post('/permissions', permissionData),
+  updatePermission: (id: number, permissionData: { name?: string; description?: string }) =>
+    getAuthenticatedApi().put(`/permissions/${id}`, permissionData),
+  deletePermission: (id: number) => getAuthenticatedApi().delete(`/permissions/${id}`),
+};

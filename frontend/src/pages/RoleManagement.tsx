@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import api from '../utils/api';
+import { rolesAPI, permissionsAPI } from '../utils/api';
 import {
   Card,
   Typography,
@@ -45,8 +45,8 @@ const RoleManagement: React.FC = () => {
   const fetchData = async () => {
     try {
       const [rolesRes, permsRes] = await Promise.all([
-        api.get('/api/v1/roles'),
-        api.get('/api/v1/permissions'),
+        rolesAPI.getRoles(),
+        permissionsAPI.getPermissions(),
       ]);
       setRoles(rolesRes.data);
       setPermissions(permsRes.data);
@@ -62,8 +62,8 @@ const RoleManagement: React.FC = () => {
   // Fetch permissions for a role
   const fetchRolePermissions = async (roleId: number) => {
     try {
-      const res = await api.get(`/api/v1/roles/${roleId}/permissions`);
-      setPermRolePerms(res.data.map((p: Permission) => p.id));
+      const response = await rolesAPI.getRolePermissions(roleId);
+      setPermRolePerms(response.data.map((p: Permission) => p.id));
     } catch {
       setPermRolePerms([]);
     }
@@ -85,7 +85,7 @@ const RoleManagement: React.FC = () => {
     setError(null);
     setSuccess(null);
     try {
-      await api.post(`/api/v1/roles/${permRole.id}/permissions`, { permissions: permRolePerms });
+      await rolesAPI.updateRolePermissions(permRole.id, permRolePerms);
       setSuccess('Permissions updated.');
       setPermModalOpen(false);
     } catch (err: any) {
@@ -102,10 +102,10 @@ const RoleManagement: React.FC = () => {
     setSuccess(null);
     try {
       if (roleForm.id) {
-        await api.put(`/api/v1/roles/${roleForm.id}`, roleForm);
+        await rolesAPI.updateRole(roleForm.id, roleForm);
         setSuccess('Role updated.');
       } else {
-        await api.post('/api/v1/roles', roleForm);
+        await rolesAPI.createRole(roleForm as { name: string; description: string });
         setSuccess('Role created.');
       }
       setRoleForm({});
@@ -119,7 +119,7 @@ const RoleManagement: React.FC = () => {
     setError(null);
     setSuccess(null);
     try {
-      await api.delete(`/api/v1/roles/${id}`);
+      await rolesAPI.deleteRole(id);
       setSuccess('Role deleted.');
       fetchData();
     } catch (err: any) {
@@ -134,10 +134,12 @@ const RoleManagement: React.FC = () => {
     setSuccess(null);
     try {
       if (permissionForm.id) {
-        await api.put(`/api/v1/permissions/${permissionForm.id}`, permissionForm);
+        await permissionsAPI.updatePermission(permissionForm.id, permissionForm);
         setSuccess('Permission updated.');
       } else {
-        await api.post('/api/v1/permissions', permissionForm);
+        await permissionsAPI.createPermission(
+          permissionForm as { name: string; description: string },
+        );
         setSuccess('Permission created.');
       }
       setPermissionForm({});
@@ -151,7 +153,7 @@ const RoleManagement: React.FC = () => {
     setError(null);
     setSuccess(null);
     try {
-      await api.delete(`/api/v1/permissions/${id}`);
+      await permissionsAPI.deletePermission(id);
       setSuccess('Permission deleted.');
       fetchData();
     } catch (err: any) {

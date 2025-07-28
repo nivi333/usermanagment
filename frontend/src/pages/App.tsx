@@ -1,50 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import ErrorBoundary from '../components/common/ErrorBoundary';
-import { AuthProvider } from '../context/AuthContext';
+import { AuthProvider, useAuth } from '../context/AuthContext';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { Layout, ConfigProvider, theme, Spin } from 'antd';
+import { ConfigProvider, theme, Spin, App as AntApp } from 'antd';
 import Login from '../components/common/Login';
 import Register from '../components/common/Register';
-import Dashboard from '../components/dashboard/Dashboard';
+import Dashboard from '../components/dashboard';
 import UserManagement from '../components/users/UserManagement';
 import '../styles/App.css';
 import RoleManagement from './RoleManagement';
 import ProtectedRoute from '../components/common/ProtectedRoute';
-
-const { Content } = Layout;
-
-interface UserPayload {
-  id: number;
-  email: string;
-  role: string;
-  [key: string]: any;
-}
+import AppLayout from '../components/common/AppLayout';
 
 function AppContent() {
-  const [user, setUser] = useState<UserPayload | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { user, loading, setUser } = useAuth();
 
-  useEffect(() => {
-    // Check if user is logged in
-    const token = localStorage.getItem('token');
-    if (token) {
-      // Decode token to get user info (simplified)
-      try {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        setUser({
-          id: typeof payload.id === 'number' ? payload.id : 0, // fallback if not present
-          email: payload.email,
-          role: payload.role,
-          ...payload,
-        });
-      } catch (error) {
-        localStorage.removeItem('token');
-      }
-    }
-    setLoading(false);
-  }, []);
-
-  const handleLogin = (userData: UserPayload) => {
+  const handleLogin = (userData: any) => {
     setUser(userData);
   };
 
@@ -56,9 +27,7 @@ function AppContent() {
   if (loading) {
     return (
       <div style={{ textAlign: 'center', marginTop: 64 }}>
-        <span role="status" aria-live="polite">
-          <Spin size="large" tip="Loading..." />
-        </span>
+        <Spin size="large" tip="Loading..." />
       </div>
     );
   }
@@ -66,66 +35,75 @@ function AppContent() {
   return (
     <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm }}>
       <Router>
-        <Layout style={{ minHeight: '100vh' }}>
-          <Content>
-            <Routes>
-              <Route
-                path="/login"
-                element={!user ? <Login onLogin={handleLogin} /> : <Navigate to="/dashboard" />}
-              />
-              <Route
-                path="/register"
-                element={!user ? <Register /> : <Navigate to="/dashboard" />}
-              />
-              <Route
-                path="/dashboard"
-                element={
-                  user ? (
-                    <Dashboard user={user} onLogout={handleLogout} />
-                  ) : (
-                    <Navigate to="/login" />
-                  )
-                }
-              />
-              <Route
-                path="/users"
-                element={
+        <Routes>
+          {/* Public Routes */}
+          <Route
+            path="/login"
+            element={!user ? <Login onLogin={handleLogin} /> : <Navigate to="/dashboard" />}
+          />
+          <Route path="/register" element={!user ? <Register /> : <Navigate to="/dashboard" />} />
+
+          {/* Root redirect */}
+          <Route path="/" element={<Navigate to={user ? '/dashboard' : '/login'} />} />
+
+          {/* Protected Routes */}
+          <Route
+            path="/dashboard"
+            element={
+              user ? (
+                <AppLayout user={user} onLogout={handleLogout}>
+                  <Dashboard />
+                </AppLayout>
+              ) : (
+                <Navigate to="/login" />
+              )
+            }
+          />
+          <Route
+            path="/users"
+            element={
+              user ? (
+                <AppLayout user={user} onLogout={handleLogout}>
                   <ProtectedRoute requiredRole="admin">
-                    <UserManagement onLogout={handleLogout} />
+                    <UserManagement />
                   </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/role-management"
-                element={
+                </AppLayout>
+              ) : (
+                <Navigate to="/login" />
+              )
+            }
+          />
+          <Route
+            path="/role-management"
+            element={
+              user ? (
+                <AppLayout user={user} onLogout={handleLogout}>
                   <ProtectedRoute requiredRole="admin">
                     <RoleManagement />
                   </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/not-authorized"
-                element={
-                  <div style={{ padding: 48, textAlign: 'center' }}>
-                    <h2>Not Authorized</h2>
-                    <p>You do not have permission to access this page.</p>
-                  </div>
-                }
-              />
-              <Route path="/" element={<Navigate to={user ? '/dashboard' : '/login'} />} />
-            </Routes>
-          </Content>
-        </Layout>
+                </AppLayout>
+              ) : (
+                <Navigate to="/login" />
+              )
+            }
+          />
+
+          {/* Catch all - redirect to dashboard or login */}
+          <Route path="*" element={<Navigate to={user ? '/dashboard' : '/login'} />} />
+        </Routes>
       </Router>
     </ConfigProvider>
   );
 }
 
-const App = () => (
+// Main App component that renders the AuthProvider and AppContent
+const App: React.FC = () => (
   <ErrorBoundary>
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <AntApp>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </AntApp>
   </ErrorBoundary>
 );
 

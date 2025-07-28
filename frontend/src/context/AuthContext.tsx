@@ -16,7 +16,9 @@ interface AuthContextProps {
 
 const AuthContext = createContext<AuthContextProps>({
   user: null,
-  setUser: () => {},
+  setUser: () => {
+    throw new Error('setUser must be used within an AuthProvider');
+  },
   isAdmin: false,
   loading: true,
 });
@@ -38,7 +40,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             id: typeof payload.id === 'number' ? payload.id : 0,
             email: payload.email,
             role: payload.role,
-            ...payload
+            ...payload,
           });
         } else {
           setUser(null);

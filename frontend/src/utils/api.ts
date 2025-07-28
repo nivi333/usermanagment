@@ -7,6 +7,35 @@ const api: AxiosInstance = axios.create({
   timeout: 10000,
 });
 
+// Debug: Log all requests
+api.interceptors.request.use((config) => {
+  console.log(
+  '[API REQUEST]',
+    config.method?.toUpperCase(),
+    (config.baseURL ?? '') + (config.url ?? ''),
+    config.data || '',
+  );
+
+
+  return config;
+});
+
+// Debug: Log all responses and errors
+api.interceptors.response.use(
+  (response) => {
+    console.log('[API RESPONSE]', response.config.url, response.status, response.data);
+    return response;
+  },
+  (error) => {
+    if (error.response) {
+      console.error('[API ERROR]', error.config.url, error.response.status, error.response.data);
+    } else {
+      console.error('[API ERROR]', error.message);
+    }
+    return Promise.reject(error);
+  },
+);
+
 // Add request interceptor to include auth token
 
 api.interceptors.request.use(
@@ -19,7 +48,7 @@ api.interceptors.request.use(
   },
   (error) => {
     return Promise.reject(error);
-  }
+  },
 );
 
 // Add response interceptor to handle common errors
@@ -32,21 +61,25 @@ api.interceptors.response.use(
       window.location.href = '/login';
     }
     return Promise.reject(error);
-  }
+  },
 );
 
 // Auth API calls
 export const authAPI = {
-  login: (credentials: { email: string; password: string }) => api.post('/login', credentials),
-  register: (userData: { email: string; password: string }) => api.post('/register', userData),
+  login: (credentials: { email: string; password: string }) =>
+    api.post('/api/v1/login', credentials),
+  register: (userData: { email: string; password: string }) =>
+    api.post('/api/v1/register', userData),
   refreshToken: () => api.post('/refresh'),
 };
 
 // User API calls
 export const userAPI = {
   getUsers: () => api.get('/users'),
-  createUser: (userData: { email: string; password: string; role: string }) => api.post('/users', userData),
-  updateUser: (id: number, userData: { email?: string; password?: string; role?: string }) => api.put(`/users/${id}`, userData),
+  createUser: (userData: { email: string; password: string; role: string }) =>
+    api.post('/users', userData),
+  updateUser: (id: number, userData: { email?: string; password?: string; role?: string }) =>
+    api.put(`/users/${id}`, userData),
   deleteUser: (id: number) => api.delete(`/users/${id}`),
   assignRole: (userId: number, role: string) => api.post('/assign-role', { userId, role }),
 };

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import ErrorBoundary from '../components/common/ErrorBoundary';
 import { AuthProvider } from '../context/AuthContext';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { Layout, ConfigProvider, theme } from 'antd';
+import { Layout, ConfigProvider, theme, Spin } from 'antd';
 import Login from '../components/common/Login';
 import Register from '../components/common/Register';
 import Dashboard from '../components/dashboard/Dashboard';
@@ -34,7 +35,7 @@ function AppContent() {
           id: typeof payload.id === 'number' ? payload.id : 0, // fallback if not present
           email: payload.email,
           role: payload.role,
-          ...payload
+          ...payload,
         });
       } catch (error) {
         localStorage.removeItem('token');
@@ -53,7 +54,13 @@ function AppContent() {
   };
 
   if (loading) {
-    return <div>Loading...</div>;
+    return (
+      <div style={{ textAlign: 'center', marginTop: 64 }}>
+        <span role="status" aria-live="polite">
+          <Spin size="large" tip="Loading..." />
+        </span>
+      </div>
+    );
   }
 
   return (
@@ -62,20 +69,26 @@ function AppContent() {
         <Layout style={{ minHeight: '100vh' }}>
           <Content>
             <Routes>
-              <Route 
-                path="/login" 
-                element={!user ? <Login onLogin={handleLogin} /> : <Navigate to="/dashboard" />} 
+              <Route
+                path="/login"
+                element={!user ? <Login onLogin={handleLogin} /> : <Navigate to="/dashboard" />}
               />
-              <Route 
-                path="/register" 
-                element={!user ? <Register /> : <Navigate to="/dashboard" />} 
+              <Route
+                path="/register"
+                element={!user ? <Register /> : <Navigate to="/dashboard" />}
               />
-              <Route 
-                path="/dashboard" 
-                element={user ? <Dashboard user={user} onLogout={handleLogout} /> : <Navigate to="/login" />} 
+              <Route
+                path="/dashboard"
+                element={
+                  user ? (
+                    <Dashboard user={user} onLogout={handleLogout} />
+                  ) : (
+                    <Navigate to="/login" />
+                  )
+                }
               />
-              <Route 
-                path="/users" 
+              <Route
+                path="/users"
                 element={
                   <ProtectedRoute requiredRole="admin">
                     <UserManagement onLogout={handleLogout} />
@@ -92,12 +105,14 @@ function AppContent() {
               />
               <Route
                 path="/not-authorized"
-                element={<div style={{padding: 48, textAlign: 'center'}}><h2>Not Authorized</h2><p>You do not have permission to access this page.</p></div>}
+                element={
+                  <div style={{ padding: 48, textAlign: 'center' }}>
+                    <h2>Not Authorized</h2>
+                    <p>You do not have permission to access this page.</p>
+                  </div>
+                }
               />
-              <Route 
-                path="/" 
-                element={<Navigate to={user ? "/dashboard" : "/login"} />} 
-              />
+              <Route path="/" element={<Navigate to={user ? '/dashboard' : '/login'} />} />
             </Routes>
           </Content>
         </Layout>
@@ -107,9 +122,11 @@ function AppContent() {
 }
 
 const App = () => (
-  <AuthProvider>
-    <AppContent />
-  </AuthProvider>
+  <ErrorBoundary>
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
+  </ErrorBoundary>
 );
 
 export default App;

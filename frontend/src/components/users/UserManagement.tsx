@@ -1,11 +1,31 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Layout, Menu, Button, Typography, Table, Card, Modal, Form, 
-  Input, Select, Space, Avatar, message, Popconfirm, Tag, Alert 
+import {
+  Layout,
+  Menu,
+  Button,
+  Typography,
+  Table,
+  Card,
+  Modal,
+  Form,
+  Input,
+  Select,
+  Space,
+  Avatar,
+  message,
+  Popconfirm,
+  Tag,
+  Alert,
 } from 'antd';
-import { 
-  UserOutlined, LogoutOutlined, TeamOutlined, DashboardOutlined,
-  PlusOutlined, EditOutlined, DeleteOutlined, MailOutlined 
+import {
+  UserOutlined,
+  LogoutOutlined,
+  TeamOutlined,
+  DashboardOutlined,
+  PlusOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  MailOutlined,
 } from '@ant-design/icons';
 import { Link, useNavigate } from 'react-router-dom';
 import { userAPI } from '../../utils/api';
@@ -28,15 +48,22 @@ import { useAuth } from '../../context/AuthContext';
 
 const UserManagement: React.FC<UserManagementProps> = ({ onLogout }) => {
   const { user, isAdmin } = useAuth();
-  if (!user) return null; // Prevent null errors
-  const [alert, setAlert] = useState<{visible: boolean; message: string; type?: 'success' | 'error'}>({visible: false, message: '', type: undefined});
 
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [form] = Form.useForm();
+  const [search, setSearch] = useState('');
+  const [roleFilter, setRoleFilter] = useState<string | undefined>(undefined);
   const navigate = useNavigate();
+
+  // Filter users by search and role
+  const filteredUsers = users.filter((u) => {
+    const matchEmail = u.email.toLowerCase().includes(search.toLowerCase());
+    const matchRole = roleFilter ? u.role === roleFilter : true;
+    return matchEmail && matchRole;
+  });
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -54,6 +81,8 @@ const UserManagement: React.FC<UserManagementProps> = ({ onLogout }) => {
     fetchUsers();
   }, []);
 
+  if (!user) return null; // Prevent null errors
+
   const handleLogout = () => {
     onLogout();
     navigate('/login');
@@ -69,7 +98,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ onLogout }) => {
     setEditingUser(record);
     form.setFieldsValue({
       email: record.email,
-      role: record.role
+      role: record.role,
     });
     setModalVisible(true);
   };
@@ -98,14 +127,19 @@ const UserManagement: React.FC<UserManagementProps> = ({ onLogout }) => {
       fetchUsers();
     } catch (error: any) {
       let errMsg = 'Failed to save user';
-      if (error?.response?.data?.error) {
+      if (error?.response?.status === 403) {
+        errMsg = 'You do not have permission to perform this action or your session has expired.';
+      } else if (error?.response?.data?.error) {
         errMsg = error.response.data.error;
+      } else if (error?.message) {
+        errMsg = error.message;
       }
-      setAlert({visible: true, message: errMsg});
-      setTimeout(() => setAlert({visible: false, message: ''}), 3000);
+      // Always log the error for debugging
+      // eslint-disable-next-line no-console
+      console.error('User creation error:', error);
+      message.error(errMsg, 4);
     }
   };
-
 
   const columns = [
     {
@@ -139,15 +173,17 @@ const UserManagement: React.FC<UserManagementProps> = ({ onLogout }) => {
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Sider width={200} theme="dark">
-        <div style={{ 
-          height: 64, 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'center',
-          color: 'white',
-          fontSize: '18px',
-          fontWeight: 'bold'
-        }}>
+        <div
+          style={{
+            height: 64,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'white',
+            fontSize: '18px',
+            fontWeight: 'bold',
+          }}
+        >
           User Management
         </div>
         <Menu
@@ -170,102 +206,151 @@ const UserManagement: React.FC<UserManagementProps> = ({ onLogout }) => {
         />
       </Sider>
       <Layout>
-        <Header style={{ 
-          background: '#fff', 
-          padding: '0 24px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-        }}>
-          <Title level={4} style={{ margin: 0 }}>User Management</Title>
+        <Header
+          style={{
+            background: '#fff',
+            padding: '0 24px',
+            display: 'flex',
+            flexWrap: 'wrap',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+          }}
+        >
+          <Title level={4} style={{ margin: 0 }}>
+            User Management
+          </Title>
           <Space>
             <Avatar icon={<UserOutlined />} />
             <Text strong>{user.email}</Text>
             <Text type="secondary">({user.role})</Text>
-            <Button 
-              type="text" 
+            <Button
+              type="text"
               icon={<LogoutOutlined />}
               onClick={handleLogout}
+              aria-label="Logout"
             >
               Logout
             </Button>
           </Space>
         </Header>
-        <Content style={{ margin: '24px', background: '#f0f2f5' }}>
-          <div style={{ padding: 24, minHeight: 360 }}>
-            {isAdmin && (
-              <Button 
-                type="primary" 
-                icon={<PlusOutlined />} 
-                style={{ marginBottom: 16 }}
-                onClick={handleCreateUser}
+        <Content style={{ margin: '24px 16px 0', overflow: 'initial' }}>
+          <Card
+            title={
+              <Title level={3} style={{ marginBottom: 0 }}>
+                Users
+              </Title>
+            }
+            extra={
+              isAdmin && (
+                <Button
+                  type="primary"
+                  icon={<PlusOutlined />}
+                  onClick={handleCreateUser}
+                  aria-label="Add new user"
+                >
+                  Add User
+                </Button>
+              )
+            }
+            style={{ maxWidth: 1000, margin: '0 auto', minHeight: 400 }}
+          >
+            {/* Filter/Search Bar */}
+            <Space
+              style={{ marginBottom: 16, flexWrap: 'wrap' }}
+              direction="horizontal"
+              size={[8, 8]}
+            >
+              <Input
+                placeholder="Search email..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                aria-label="Search users by email"
+                style={{ width: 200 }}
+                allowClear
+              />
+              <Select
+                placeholder="Filter by role"
+                value={roleFilter}
+                onChange={setRoleFilter}
+                allowClear
+                style={{ width: 160 }}
+                aria-label="Filter users by role"
               >
-                Add User
-              </Button>
-            )}
+                <Select.Option value="admin">Admin</Select.Option>
+                <Select.Option value="user">User</Select.Option>
+              </Select>
+            </Space>
+            {/* User Table with accessibility and empty state */}
             <Table
               columns={columns}
-              dataSource={users}
+              dataSource={filteredUsers}
               rowKey="id"
               loading={loading}
-              bordered
+              pagination={{ pageSize: 10 }}
+              locale={{
+                emptyText: <span>No users found.</span>,
+              }}
+              scroll={{ x: 'max-content' }}
+              aria-label="User list table"
             />
-            <Modal
-              visible={modalVisible}
-              title={editingUser ? 'Edit User' : 'Add User'}
-              onCancel={() => setModalVisible(false)}
-              onOk={handleModalOk}
-              okText={editingUser ? 'Update' : 'Create'}
+          </Card>
+          {/* Modal for Add/Edit User with accessible labels */}
+          <Modal
+            title={editingUser ? 'Edit User' : 'Add User'}
+            open={modalVisible}
+            onOk={handleModalOk}
+            onCancel={() => setModalVisible(false)}
+            okText={editingUser ? 'Update' : 'Create'}
+            destroyOnClose
+            aria-label={editingUser ? 'Edit user modal' : 'Add user modal'}
+          >
+            <Form
+              form={form}
+              layout="vertical"
+              initialValues={{ role: 'user' }}
+              preserve={false}
+              validateTrigger="onChange"
             >
-              {alert.visible && (
-                <div style={{ marginBottom: 16 }}>
-                  <Alert message={alert.message} type={alert.type || 'error'} showIcon />
-                </div>
-              )}
-              <Form
-                form={form}
-                layout="vertical"
-                initialValues={{ role: 'user' }}
+              <Form.Item
+                label="Email"
+                name="email"
+                rules={[
+                  { required: true, message: 'Email is required' },
+                  { type: 'email', message: 'Invalid email' },
+                ]}
               >
+                <Input prefix={<MailOutlined />} aria-label="User email" />
+              </Form.Item>
+              <Form.Item
+                label="Role"
+                name="role"
+                rules={[{ required: true, message: 'Role is required' }]}
+              >
+                <Select aria-label="User role">
+                  <Select.Option value="admin">Admin</Select.Option>
+                  <Select.Option value="user">User</Select.Option>
+                </Select>
+              </Form.Item>
+              {/* Password field only for creation */}
+              {editingUser === null && (
                 <Form.Item
-                  name="email"
-                  label="Email"
+                  name="password"
+                  label="Password"
                   rules={[
-                    { required: true, message: 'Please input the email!' },
-                    { type: 'email', message: 'Please enter a valid email!' }
+                    { required: true, message: 'Password is required' },
+                    {
+                      pattern: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/,
+                      message:
+                        'Password must be at least 8 characters, include upper, lower, and digit.',
+                    },
                   ]}
                 >
-                  <Input prefix={<MailOutlined />} placeholder="Email" />
+                  <Input.Password aria-label="User password" />
                 </Form.Item>
-                <Form.Item
-                  name="role"
-                  label="Role"
-                  rules={[{ required: true, message: 'Please select a role!' }]}
-                >
-                  <Select
-                    options={[
-                      { value: 'user', label: 'User' },
-                      { value: 'admin', label: 'Admin' }
-                    ]}
-                  />
-                </Form.Item>
-                {/* Password field only for creation */}
-                {editingUser === null && (
-                  <Form.Item
-                    name="password"
-                    label="Password"
-                    rules={[
-                      { required: true, message: 'Please input the password!' },
-                      { pattern: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/, message: 'Password must be at least 8 characters, include upper, lower, and digit.' }
-                    ]}
-                  >
-                    <Input.Password placeholder="Password" />
-                  </Form.Item>
-                )}
-              </Form>
-            </Modal>
-          </div>
+              )}
+            </Form>
+          </Modal>
         </Content>
       </Layout>
     </Layout>

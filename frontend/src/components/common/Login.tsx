@@ -40,57 +40,43 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   };
 
   return (
-    <div style={{ 
-      display: 'flex', 
-      justifyContent: 'center', 
-      alignItems: 'center', 
-      minHeight: '100vh',
-      background: '#f0f2f5'
-    }}>
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: '100vh',
+        background: '#f0f2f5',
+      }}
+    >
       <Card style={{ width: 400, boxShadow: '0 4px 8px rgba(0,0,0,0.1)' }}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <Title level={2}>User Management System</Title>
-          <Title level={4} type="secondary">Sign In</Title>
+          <Title level={4} type="secondary">
+            Sign In
+          </Title>
         </div>
-        {error && (
-          <Alert
-            message={error}
-            type="error"
-            showIcon
-            style={{ marginBottom: 16 }}
-          />
-        )}
-        <Form
-          name="login"
-          onFinish={onFinish}
-          layout="vertical"
-          size="large"
-        >
+        {error && <Alert message={error} type="error" showIcon style={{ marginBottom: 16 }} />}
+        <Form name="login" onFinish={onFinish} layout="vertical" size="large">
           <Form.Item
             name="email"
             label="Email"
             rules={[
               { required: true, message: 'Please input your email!' },
-              { type: 'email', message: 'Please enter a valid email!' }
+              { type: 'email', message: 'Please enter a valid email!' },
             ]}
           >
-            <Input 
-              prefix={<UserOutlined />} 
-              placeholder="Email" 
-            />
+            <Input prefix={<UserOutlined />} placeholder="Email" />
           </Form.Item>
           <Form.Item
             name="password"
             label="Password"
             rules={[
               { required: true, message: 'Please input your password!' },
-              { min: 8, message: 'Password must be at least 8 characters!' }
+              { min: 8, message: 'Password must be at least 8 characters!' },
             ]}
           >
-            <Input.Password 
-              prefix={<LockOutlined />} 
-              placeholder="Password" 
-            />
+            <Input.Password prefix={<LockOutlined />} placeholder="Password" />
           </Form.Item>
           <Form.Item>
             <Space direction="vertical" style={{ width: '100%' }}>
@@ -101,7 +87,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           </Form.Item>
         </Form>
         <div style={{ textAlign: 'center', marginTop: 16 }}>
-          <span>Don't have an account? </span>
+          <span>Don&apos;t have an account? </span>
           <Link to="/register">Sign up</Link>
         </div>
       </Card>

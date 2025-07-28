@@ -8,7 +8,8 @@ const mockedApi = api as jest.Mocked<typeof api>;
 
 describe('RoleManagement Page', () => {
   beforeEach(() => {
-    mockedApi.get.mockResolvedValueOnce({ data: [] }) // roles
+    mockedApi.get
+      .mockResolvedValueOnce({ data: [] }) // roles
       .mockResolvedValueOnce({ data: [] }); // permissions
   });
 
@@ -26,7 +27,12 @@ describe('RoleManagement Page', () => {
     render(<RoleManagement />);
     fireEvent.change(screen.getByPlaceholderText('Role name'), { target: { value: 'admin' } });
     fireEvent.submit(screen.getByText('Add Role').closest('form')!);
-    await waitFor(() => expect(mockedApi.post).toHaveBeenCalledWith('/roles', expect.objectContaining({ name: 'admin' })));
+    await waitFor(() =>
+      expect(mockedApi.post).toHaveBeenCalledWith(
+        '/roles',
+        expect.objectContaining({ name: 'admin' }),
+      ),
+    );
   });
 
   it('submits new permission', async () => {
@@ -34,6 +40,11 @@ describe('RoleManagement Page', () => {
     render(<RoleManagement />);
     fireEvent.change(screen.getByPlaceholderText('Permission name'), { target: { value: 'perm' } });
     fireEvent.submit(screen.getByText('Add Permission').closest('form')!);
-    await waitFor(() => expect(mockedApi.post).toHaveBeenCalledWith('/permissions', expect.objectContaining({ name: 'perm' })));
+    await waitFor(() =>
+      expect(mockedApi.post).toHaveBeenCalledWith(
+        '/permissions',
+        expect.objectContaining({ name: 'perm' }),
+      ),
+    );
   });
 });

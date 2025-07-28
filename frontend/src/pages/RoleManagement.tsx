@@ -1,6 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
-import { Card, Typography, Form, Input, Button, Table, Modal, Select, Alert, Space, message } from 'antd';
+import {
+  Card,
+  Typography,
+  Form,
+  Input,
+  Button,
+  Table,
+  Modal,
+  Select,
+  Alert,
+  Space,
+  message,
+} from 'antd';
 
 const { Title } = Typography;
 
@@ -33,8 +45,8 @@ const RoleManagement: React.FC = () => {
   const fetchData = async () => {
     try {
       const [rolesRes, permsRes] = await Promise.all([
-        api.get('/roles'),
-        api.get('/permissions'),
+        api.get('/api/v1/roles'),
+        api.get('/api/v1/permissions'),
       ]);
       setRoles(rolesRes.data);
       setPermissions(permsRes.data);
@@ -50,7 +62,7 @@ const RoleManagement: React.FC = () => {
   // Fetch permissions for a role
   const fetchRolePermissions = async (roleId: number) => {
     try {
-      const res = await api.get(`/roles/${roleId}/permissions`);
+      const res = await api.get(`/api/v1/roles/${roleId}/permissions`);
       setPermRolePerms(res.data.map((p: Permission) => p.id));
     } catch {
       setPermRolePerms([]);
@@ -69,9 +81,11 @@ const RoleManagement: React.FC = () => {
   // Submit permission assignments
   const handlePermAssign = async () => {
     if (!permRole) return;
-    setPermLoading(true); setError(null); setSuccess(null);
+    setPermLoading(true);
+    setError(null);
+    setSuccess(null);
     try {
-      await api.post(`/roles/${permRole.id}/permissions`, { permissions: permRolePerms });
+      await api.post(`/api/v1/roles/${permRole.id}/permissions`, { permissions: permRolePerms });
       setSuccess('Permissions updated.');
       setPermModalOpen(false);
     } catch (err: any) {
@@ -84,13 +98,14 @@ const RoleManagement: React.FC = () => {
   // Role CRUD
   const handleRoleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null); setSuccess(null);
+    setError(null);
+    setSuccess(null);
     try {
       if (roleForm.id) {
-        await api.put(`/roles/${roleForm.id}`, roleForm);
+        await api.put(`/api/v1/roles/${roleForm.id}`, roleForm);
         setSuccess('Role updated.');
       } else {
-        await api.post('/roles', roleForm);
+        await api.post('/api/v1/roles', roleForm);
         setSuccess('Role created.');
       }
       setRoleForm({});
@@ -101,9 +116,10 @@ const RoleManagement: React.FC = () => {
   };
   const handleRoleDelete = async (id: number) => {
     if (!window.confirm('Delete this role?')) return;
-    setError(null); setSuccess(null);
+    setError(null);
+    setSuccess(null);
     try {
-      await api.delete(`/roles/${id}`);
+      await api.delete(`/api/v1/roles/${id}`);
       setSuccess('Role deleted.');
       fetchData();
     } catch (err: any) {
@@ -114,13 +130,14 @@ const RoleManagement: React.FC = () => {
   // Permission CRUD
   const handlePermissionSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null); setSuccess(null);
+    setError(null);
+    setSuccess(null);
     try {
       if (permissionForm.id) {
-        await api.put(`/permissions/${permissionForm.id}`, permissionForm);
+        await api.put(`/api/v1/permissions/${permissionForm.id}`, permissionForm);
         setSuccess('Permission updated.');
       } else {
-        await api.post('/permissions', permissionForm);
+        await api.post('/api/v1/permissions', permissionForm);
         setSuccess('Permission created.');
       }
       setPermissionForm({});
@@ -131,9 +148,10 @@ const RoleManagement: React.FC = () => {
   };
   const handlePermissionDelete = async (id: number) => {
     if (!window.confirm('Delete this permission?')) return;
-    setError(null); setSuccess(null);
+    setError(null);
+    setSuccess(null);
     try {
-      await api.delete(`/permissions/${id}`);
+      await api.delete(`/api/v1/permissions/${id}`);
       setSuccess('Permission deleted.');
       fetchData();
     } catch (err: any) {
@@ -142,8 +160,13 @@ const RoleManagement: React.FC = () => {
   };
 
   return (
-    <Card style={{ maxWidth: 900, margin: '2rem auto', borderRadius: 12 }} bodyStyle={{ padding: 32 }}>
-      <Title level={2} style={{ marginBottom: 16 }}>Role Management</Title>
+    <Card
+      style={{ maxWidth: 900, margin: '2rem auto', borderRadius: 12 }}
+      bodyStyle={{ padding: 32 }}
+    >
+      <Title level={2} style={{ marginBottom: 16 }}>
+        Role Management
+      </Title>
       {error && <Alert type="error" message={error} showIcon style={{ marginBottom: 16 }} />}
       {success && <Alert type="success" message={success} showIcon style={{ marginBottom: 16 }} />}
       <Space direction="vertical" size={32} style={{ width: '100%' }}>
@@ -153,7 +176,7 @@ const RoleManagement: React.FC = () => {
               <Input
                 placeholder="Role name"
                 value={roleForm.name || ''}
-                onChange={e => setRoleForm(f => ({ ...f, name: e.target.value }))}
+                onChange={(e) => setRoleForm((f) => ({ ...f, name: e.target.value }))}
                 required
                 style={{ minWidth: 140 }}
               />
@@ -162,12 +185,14 @@ const RoleManagement: React.FC = () => {
               <Input
                 placeholder="Description"
                 value={roleForm.description || ''}
-                onChange={e => setRoleForm(f => ({ ...f, description: e.target.value }))}
+                onChange={(e) => setRoleForm((f) => ({ ...f, description: e.target.value }))}
                 style={{ minWidth: 180 }}
               />
             </Form.Item>
             <Form.Item>
-              <Button type="primary" htmlType="submit">{roleForm.id ? 'Update' : 'Add'} Role</Button>
+              <Button type="primary" htmlType="submit">
+                {roleForm.id ? 'Update' : 'Add'} Role
+              </Button>
             </Form.Item>
             {roleForm.id && (
               <Form.Item>
@@ -186,18 +211,24 @@ const RoleManagement: React.FC = () => {
               {
                 title: 'Permissions',
                 render: (_, role) => (
-                  <Button size="small" onClick={() => openPermModal(role)}>Manage</Button>
-                )
+                  <Button size="small" onClick={() => openPermModal(role)}>
+                    Manage
+                  </Button>
+                ),
               },
               {
                 title: 'Actions',
                 render: (_, role) => (
                   <Space>
-                    <Button size="small" onClick={() => setRoleForm(role)}>Edit</Button>
-                    <Button size="small" danger onClick={() => handleRoleDelete(role.id)}>Delete</Button>
+                    <Button size="small" onClick={() => setRoleForm(role)}>
+                      Edit
+                    </Button>
+                    <Button size="small" danger onClick={() => handleRoleDelete(role.id)}>
+                      Delete
+                    </Button>
                   </Space>
-                )
-              }
+                ),
+              },
             ]}
           />
           <Modal
@@ -220,8 +251,10 @@ const RoleManagement: React.FC = () => {
                 placeholder="Select permissions"
                 optionFilterProp="children"
               >
-                {permissions.map(p => (
-                  <Select.Option key={p.id} value={p.id}>{p.name} - {p.description}</Select.Option>
+                {permissions.map((p) => (
+                  <Select.Option key={p.id} value={p.id}>
+                    {p.name} - {p.description}
+                  </Select.Option>
                 ))}
               </Select>
             )}
@@ -233,7 +266,7 @@ const RoleManagement: React.FC = () => {
               <Input
                 placeholder="Permission name"
                 value={permissionForm.name || ''}
-                onChange={e => setPermissionForm(f => ({ ...f, name: e.target.value }))}
+                onChange={(e) => setPermissionForm((f) => ({ ...f, name: e.target.value }))}
                 required
                 style={{ minWidth: 140 }}
               />
@@ -242,12 +275,14 @@ const RoleManagement: React.FC = () => {
               <Input
                 placeholder="Description"
                 value={permissionForm.description || ''}
-                onChange={e => setPermissionForm(f => ({ ...f, description: e.target.value }))}
+                onChange={(e) => setPermissionForm((f) => ({ ...f, description: e.target.value }))}
                 style={{ minWidth: 180 }}
               />
             </Form.Item>
             <Form.Item>
-              <Button type="primary" htmlType="submit">{permissionForm.id ? 'Update' : 'Add'} Permission</Button>
+              <Button type="primary" htmlType="submit">
+                {permissionForm.id ? 'Update' : 'Add'} Permission
+              </Button>
             </Form.Item>
             {permissionForm.id && (
               <Form.Item>
@@ -267,11 +302,15 @@ const RoleManagement: React.FC = () => {
                 title: 'Actions',
                 render: (_, perm) => (
                   <Space>
-                    <Button size="small" onClick={() => setPermissionForm(perm)}>Edit</Button>
-                    <Button size="small" danger onClick={() => handlePermissionDelete(perm.id)}>Delete</Button>
+                    <Button size="small" onClick={() => setPermissionForm(perm)}>
+                      Edit
+                    </Button>
+                    <Button size="small" danger onClick={() => handlePermissionDelete(perm.id)}>
+                      Delete
+                    </Button>
                   </Space>
-                )
-              }
+                ),
+              },
             ]}
           />
         </Card>

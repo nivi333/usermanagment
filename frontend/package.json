@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
+    "@ant-design/charts": "^2.6.1",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
@@ -10,6 +11,7 @@
     "antd": "^5.12.8",
     "axios": "^1.6.2",
     "react": "^19.1.0",
+    "react-countup": "^6.5.3",
     "react-dom": "^19.1.0",
     "react-router-dom": "^6.20.1",
     "react-scripts": "5.0.1",
@@ -19,7 +21,12 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "lint": "eslint --ext .ts,.tsx src",
+    "lint:fix": "eslint --ext .ts,.tsx src --fix",
+    "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,css,md}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json,css,md}\"",
+    "test:coverage": "jest --coverage"
   },
   "eslintConfig": {
     "extends": [
@@ -43,6 +50,8 @@
     "@types/jest": "^30.0.0",
     "@types/node": "^24.1.0",
     "@types/react": "^19.1.8",
-    "@types/react-dom": "^19.1.6"
+    "@types/react-dom": "^19.1.6",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.3"
   }
 }
